@@ -1,0 +1,318 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../node_modules/.prisma/client"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model alquileres {
+  id                      String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuario_id              String               @db.Uuid
+  power_bank_id           String               @db.Uuid
+  estacion_retiro_id      String               @db.Uuid
+  cupon_id                String?              @db.Uuid
+  metodo_pago_id          String               @db.Uuid
+  hora_inicio             DateTime             @default(now()) @db.Timestamptz(6)
+  hora_fin                DateTime?            @db.Timestamptz(6)
+  duracion_horas_estimada Int
+  duracion_horas_real     Decimal?             @db.Decimal(5, 2)
+  tarifa_hora             Decimal              @db.Decimal(10, 2)
+  costo_estimado          Decimal              @db.Decimal(10, 2)
+  costo_final             Decimal?             @db.Decimal(10, 2)
+  moneda                  String               @default("COP") @db.VarChar(10)
+  descuento_aplicado      Decimal              @default(0) @db.Decimal(10, 2)
+  penalizacion            Decimal              @default(0) @db.Decimal(10, 2)
+  estado                  alquiler_estado_enum @default(activo)
+  fecha_creacion          DateTime             @default(now()) @db.Timestamptz(6)
+  cupones                 cupones?             @relation(fields: [cupon_id], references: [id], map: "fk_alquiler_cupon")
+  estaciones              estaciones           @relation(fields: [estacion_retiro_id], references: [id], map: "fk_alquiler_estacion_retiro")
+  metodos_pago            metodos_pago         @relation(fields: [metodo_pago_id], references: [id], map: "fk_alquiler_metodo_pago")
+  power_banks             power_banks          @relation(fields: [power_bank_id], references: [id], map: "fk_alquiler_powerbank")
+  usuarios                usuarios             @relation(fields: [usuario_id], references: [id], map: "fk_alquiler_usuario")
+  pagos                   pagos[]
+
+  @@index([usuario_id, estado], map: "idx_alquileres_activos")
+  @@index([cupon_id], map: "idx_alquileres_cupon")
+  @@index([estacion_retiro_id], map: "idx_alquileres_estacion_retiro")
+  @@index([estado], map: "idx_alquileres_estado")
+  @@index([hora_inicio], map: "idx_alquileres_fecha")
+  @@index([metodo_pago_id], map: "idx_alquileres_metodo_pago")
+  @@index([power_bank_id], map: "idx_alquileres_powerbank")
+  @@index([usuario_id], map: "idx_alquileres_usuario")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model cupones {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo          String            @unique @db.VarChar(50)
+  descripcion     String?           @db.VarChar(200)
+  tipo_descuento  cupon_tipo_enum
+  valor_descuento Decimal           @db.Decimal(10, 2)
+  fecha_inicio    DateTime          @db.Timestamptz(6)
+  fecha_fin       DateTime          @db.Timestamptz(6)
+  usos_maximos    Int?
+  usos_actuales   Int               @default(0)
+  estado          cupon_estado_enum @default(activo)
+  alquileres      alquileres[]
+
+  @@index([codigo], map: "idx_cupones_codigo")
+  @@index([estado], map: "idx_cupones_estado")
+  @@index([fecha_inicio, fecha_fin], map: "idx_cupones_fechas")
+}
+
+model estaciones {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre           String               @db.VarChar(150)
+  ciudad           String               @db.VarChar(80)
+  zona             String?              @db.VarChar(100)
+  direccion        String               @db.VarChar(200)
+  latitud          Decimal              @db.Decimal(10, 7)
+  longitud         Decimal              @db.Decimal(10, 7)
+  tarifa_por_hora  Decimal              @db.Decimal(10, 2)
+  moneda           String               @default("COP") @db.VarChar(10)
+  capacidad_total  Int                  @default(0)
+  estado           estacion_estado_enum @default(en_linea)
+  descripcion      String?
+  horario_apertura DateTime?            @db.Time(6)
+  horario_cierre   DateTime?            @db.Time(6)
+  fecha_creacion   DateTime             @default(now()) @db.Timestamptz(6)
+  alquileres       alquileres[]
+  power_banks      power_banks[]
+
+  @@index([ciudad], map: "idx_estaciones_ciudad")
+  @@index([latitud, longitud], map: "idx_estaciones_coordenadas")
+  @@index([estado], map: "idx_estaciones_estado")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model metodos_pago {
+  id                String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuario_id        String                  @db.Uuid
+  tipo              metodo_pago_tipo_enum
+  nombre_titular    String                  @db.VarChar(150)
+  ultimos_4_digitos String                  @db.Char(4)
+  mes_vencimiento   Int                     @db.SmallInt
+  anio_vencimiento  Int                     @db.SmallInt
+  es_predeterminada Boolean                 @default(false)
+  token_pasarela    String                  @db.VarChar(300)
+  estado            metodo_pago_estado_enum @default(activo)
+  fecha_creacion    DateTime                @default(now()) @db.Timestamptz(6)
+  alquileres        alquileres[]
+  usuarios          usuarios                @relation(fields: [usuario_id], references: [id], map: "fk_metodo_usuario")
+  pagos             pagos[]
+
+  @@index([estado], map: "idx_metodos_estado")
+  @@index([usuario_id, es_predeterminada], map: "idx_metodos_predeterminada")
+  @@index([usuario_id], map: "idx_metodos_usuario")
+}
+
+model notificaciones {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuario_id  String          @db.Uuid
+  titulo      String          @db.VarChar(150)
+  cuerpo      String
+  tipo        notif_tipo_enum @default(sistema)
+  leida       Boolean         @default(false)
+  fecha_envio DateTime        @default(now()) @db.Timestamptz(6)
+  usuarios    usuarios        @relation(fields: [usuario_id], references: [id], map: "fk_notif_usuario")
+
+  @@index([fecha_envio], map: "idx_notif_fecha")
+  @@index([usuario_id, leida], map: "idx_notif_no_leidas")
+  @@index([usuario_id], map: "idx_notif_usuario")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model pagos {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  alquiler_id         String             @db.Uuid
+  usuario_id          String             @db.Uuid
+  metodo_pago_id      String?            @db.Uuid
+  concepto            pago_concepto_enum @default(alquiler)
+  monto               Decimal            @db.Decimal(10, 2)
+  moneda              String             @default("COP") @db.VarChar(10)
+  pasarela            pasarela_enum
+  transaccion_id      String             @db.VarChar(200)
+  merchant_id         String?            @db.VarChar(200)
+  estado              pago_estado_enum   @default(pendiente)
+  mensaje_pasarela    String?
+  fecha_intento       DateTime           @default(now()) @db.Timestamptz(6)
+  fecha_actualizacion DateTime           @default(now()) @db.Timestamptz(6)
+  alquileres          alquileres         @relation(fields: [alquiler_id], references: [id], map: "fk_pago_alquiler")
+  metodos_pago        metodos_pago?      @relation(fields: [metodo_pago_id], references: [id], map: "fk_pago_metodo")
+  usuarios            usuarios           @relation(fields: [usuario_id], references: [id], map: "fk_pago_usuario")
+
+  @@unique([pasarela, transaccion_id], map: "uq_pago_pasarela_transaccion")
+  @@index([alquiler_id], map: "idx_pagos_alquiler")
+  @@index([estado], map: "idx_pagos_estado")
+  @@index([fecha_intento(sort: Desc)], map: "idx_pagos_fecha")
+  @@index([metodo_pago_id], map: "idx_pagos_metodo")
+  @@index([usuario_id], map: "idx_pagos_usuario")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model power_banks {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo               String                @unique @db.VarChar(20)
+  estacion_id          String                @db.Uuid
+  modelo               String?               @db.VarChar(100)
+  estado               powerbank_estado_enum @default(disponible)
+  nivel_bateria        Int                   @default(100)
+  qr_code              String                @unique @db.VarChar(300)
+  fecha_creacion       DateTime              @default(now()) @db.Timestamptz(6)
+  ultima_actualizacion DateTime              @default(now()) @db.Timestamptz(6)
+  alquileres           alquileres[]
+  estaciones           estaciones            @relation(fields: [estacion_id], references: [id], map: "fk_powerbank_estacion")
+
+  @@index([codigo], map: "idx_powerbanks_codigo")
+  @@index([estacion_id], map: "idx_powerbanks_estacion")
+  @@index([estado], map: "idx_powerbanks_estado")
+}
+
+model tokens_verificacion {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuario_id     String          @db.Uuid
+  tipo           token_tipo_enum
+  token          String          @db.VarChar(10)
+  expira_en      DateTime        @db.Timestamptz(6)
+  usado          Boolean         @default(false)
+  fecha_creacion DateTime        @default(now()) @db.Timestamptz(6)
+  usuarios       usuarios        @relation(fields: [usuario_id], references: [id], map: "fk_token_usuario")
+
+  @@index([expira_en], map: "idx_tokens_expira")
+  @@index([usuario_id, tipo, token], map: "idx_tokens_lookup")
+  @@index([usuario_id], map: "idx_tokens_usuario")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model usuarios {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombres             String                @db.VarChar(100)
+  apellidos           String                @db.VarChar(100)
+  email               String?               @unique @db.VarChar(150)
+  telefono            String?               @unique @db.VarChar(20)
+  password_hash       String?               @db.VarChar(255)
+  pais                String?               @db.VarChar(80)
+  ciudad              String?               @db.VarChar(80)
+  direccion           String?               @db.VarChar(200)
+  foto_url            String?               @db.VarChar(300)
+  calificacion        Decimal?              @db.Decimal(2, 1)
+  email_verificado    Boolean               @default(false)
+  telefono_verificado Boolean               @default(false)
+  acepta_politica     Boolean               @default(false)
+  auth_provider       auth_provider_enum    @default(email)
+  auth_provider_id    String?               @db.VarChar(200)
+  estado              usuario_estado_enum   @default(activo)
+  fecha_registro      DateTime              @default(now()) @db.Timestamptz(6)
+  alquileres          alquileres[]
+  metodos_pago        metodos_pago[]
+  notificaciones      notificaciones[]
+  pagos               pagos[]
+  tokens_verificacion tokens_verificacion[]
+
+  @@index([auth_provider, auth_provider_id], map: "idx_usuarios_auth")
+  @@index([email], map: "idx_usuarios_email")
+  @@index([estado], map: "idx_usuarios_estado")
+  @@index([telefono], map: "idx_usuarios_telefono")
+}
+
+enum alquiler_estado_enum {
+  activo
+  finalizado
+  cancelado
+  penalizado
+}
+
+enum auth_provider_enum {
+  email
+  google
+  facebook
+}
+
+enum cupon_estado_enum {
+  activo
+  vencido
+  desactivado
+}
+
+enum cupon_tipo_enum {
+  porcentaje
+  valor_fijo
+}
+
+enum estacion_estado_enum {
+  en_linea
+  fuera_de_linea
+  mantenimiento
+}
+
+enum metodo_pago_estado_enum {
+  activo
+  vencida
+  eliminada
+}
+
+enum metodo_pago_tipo_enum {
+  visa
+  mastercard
+  amex
+  dinersclub
+  otro
+}
+
+enum notif_tipo_enum {
+  promocion
+  alquiler
+  pago
+  sistema
+}
+
+enum pago_concepto_enum {
+  alquiler
+  penalizacion
+  reembolso
+}
+
+enum pago_estado_enum {
+  pendiente
+  aprobado
+  rechazado
+  reembolsado
+  error
+}
+
+enum pasarela_enum {
+  wompi
+  payu
+  mercadopago
+  stripe
+  otro
+}
+
+enum powerbank_estado_enum {
+  disponible
+  alquilado
+  cargando
+  da_ado     @map("dañado")
+  retirado
+}
+
+enum token_tipo_enum {
+  email
+  whatsapp
+  reset_password
+}
+
+enum usuario_estado_enum {
+  activo
+  suspendido
+  inactivo
+}

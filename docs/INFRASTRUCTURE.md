@@ -220,7 +220,7 @@ PAYMENT_GATEWAY=paymentsway   # paymentsway | mock
 PAYMENTSWAY_BASE_URL=https://api.paymentsway.example
 PAYMENTSWAY_API_KEY=...
 PAYMENTSWAY_WEBHOOK_SECRET=...
-MOCK_GATEWAY_BEHAVIOR=always_approve   # solo si PAYMENT_GATEWAY=mock
+MOCK_GATEWAY_BEHAVIOR=always_success   # valores: always_success | always_decline | random — solo si PAYMENT_GATEWAY=mock
 
 # ─── Security ─────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS=https://moltech.app,moltech://*
