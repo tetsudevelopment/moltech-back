@@ -1,7 +1,6 @@
 import type { Config } from 'jest';
 
 const config: Config = {
-  preset: 'ts-jest',
   testEnvironment: 'node',
   rootDir: '.',
   roots: ['<rootDir>/test'],
@@ -13,7 +12,7 @@ const config: Config = {
   },
   testTimeout: 30000,
   transform: {
-    '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
+    '^.+\\.(t|j)s$': ['@swc/jest', {}],
   },
 };
 

@@ -1,7 +1,6 @@
 import type { Config } from 'jest';
 
 const config: Config = {
-  preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
   testMatch: ['**/*.spec.ts'],
@@ -13,7 +12,7 @@ const config: Config = {
   coverageDirectory: 'coverage',
   testTimeout: 10000,
   transform: {
-    '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
+    '^.+\\.(t|j)s$': ['@swc/jest', {}],
   },
 };
 
