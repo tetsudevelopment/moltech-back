@@ -107,7 +107,7 @@ moltech_api/
 │   └── BACKEND_TESTING.md
 │
 ├── prisma/
-│   ├── schema.prisma                   # introspectado del schema_v2.sql + @@map español
+│   ├── schema.prisma                   # introspectado del schema_v2.sql + modelos en english snake_case
 │   ├── migrations/
 │   └── seed.ts                         # data de dev
 │
@@ -515,11 +515,13 @@ export class RentalsRepository {
 }
 ```
 
-### 8.3 Naming y mapeo español ↔ inglés
+### 8.3 Naming convention
 
-- **DB**: snake_case español (`alquileres`, `usuarios`, `metodos_pago`, `hora_inicio`, `costo_final`).
-- **Prisma client**: camelCase inglés/español-mixto generado vía `@@map` y `@map` (ej: `model Alquiler { id String @id, usuarioId String @map("usuario_id") @@map("alquileres") }`).
-- **API JSON**: camelCase inglés/español-mixto (ver `API_CONTRACT.md`). Para términos de dominio MOLTECH usamos español (`alquiler`, `estacion`), para términos genéricos inglés (`createdAt`, `pagination`).
+- **DB**: english snake_case (`rentals`, `users`, `payment_methods`, `start_time`, `final_cost`).
+- **Prisma client**: camelCase inglés generado automáticamente. Se usa `@@map` / `@map` solo cuando el nombre del modelo o campo Prisma difiere de la tabla/columna en DB (ej: `model Rental { @@map("rentals") }`).
+- **API JSON**: camelCase inglés (ver `API_CONTRACT.md`). Tanto términos de dominio MOLTECH como términos genéricos van en inglés (`rental`, `station`, `createdAt`, `pagination`).
+
+> **Convención actualizada 2026-05-17:** antes DB y modelos Prisma usaban español. Ahora DB y código están íntegramente en english snake_case + camelCase inglés respectivamente.
 
 Ver `DATABASE_MIGRATIONS.md` para reglas detalladas.
 

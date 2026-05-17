@@ -37,56 +37,60 @@ A futuro: script `pnpm db:gen-dbml` que genera el DBML desde Prisma (parser + te
 
 ---
 
-## 2. Naming — español snake_case en DB
+## 2. Naming — english snake_case en DB
+
+> **Convención cambiada 2026-05-17:** antes era español snake_case, ahora es **english snake_case**. La migración completa fue ejecutada en commits M.1–M.6.
 
 ### 2.1 Reglas
 
 | Plano | Naming |
 |---|---|
-| **Tablas** | `snake_case` español plural (`usuarios`, `alquileres`, `metodos_pago`, `power_banks`) |
-| **Columnas** | `snake_case` español de dominio (`hora_inicio`, `costo_final`, `tarifa_por_hora`, `usuario_id`). Técnicos en inglés/español-mixto (`created_at`, `updated_at`) — preferimos español si el término ya está en el schema actual. |
-| **Indices** | `idx_<tabla>_<columnas>` (ej: `idx_usuarios_email`) |
-| **Constraints** | `chk_<tabla>_<regla>`, `fk_<tabla>_<referencia>`, `uq_<tabla>_<columnas>` |
-| **Enums** | `<nombre>_enum` (ej: `auth_provider_enum`, `pago_estado_enum`) |
-| **Triggers / functions** | `trg_<tabla>_<verbo>`, `fn_<accion>` |
-| **Modelos Prisma (TS)** | PascalCase singular en español (`model Usuario`, `model Alquiler`, `model MetodoPago`) |
-| **Campos Prisma (TS)** | camelCase mapeado con `@map("snake_case_db")` |
-| **Tipo enum Prisma (TS)** | PascalCase (`AuthProvider`, `PagoEstado`) |
+| **Tablas** | `snake_case` inglés plural (`users`, `rentals`, `payment_methods`, `power_banks`) |
+| **Columnas** | `snake_case` inglés (`start_time`, `final_cost`, `hourly_rate`, `user_id`, `created_at`, `updated_at`) |
+| **Índices** | `idx_<table>_<columns>` (ej: `idx_users_email`) |
+| **Constraints** | `chk_<table>_<rule>`, `fk_<table>_<reference>`, `uq_<table>_<columns>` |
+| **Enums** | `<name>_enum` (ej: `auth_provider_enum`, `payment_status_enum`) |
+| **Triggers / functions** | `trg_<table>_<verb>`, `fn_<action>` |
+| **Modelos Prisma (TS)** | PascalCase singular inglés (`model User`, `model Rental`, `model PaymentMethod`) |
+| **Campos Prisma (TS)** | camelCase inglés. Se usa `@map("snake_case_db")` solo cuando el nombre generado por Prisma difiere del campo del modelo. |
+| **Tipo enum Prisma (TS)** | PascalCase inglés (`AuthProvider`, `PaymentStatus`) |
 
-### 2.2 Ejemplo de mapeo Prisma
+Tablas y columnas en **english snake_case**. Identificadores en código TypeScript en **camelCase inglés**.
+
+### 2.2 Ejemplo de modelo Prisma
 
 ```prisma
-model Alquiler {
-  id                     String           @id @default(uuid()) @db.Uuid
-  usuarioId              String           @map("usuario_id") @db.Uuid
-  powerBankId            String           @map("power_bank_id") @db.Uuid
-  estacionRetiroId       String           @map("estacion_retiro_id") @db.Uuid
-  cuponId                String?          @map("cupon_id") @db.Uuid
-  metodoPagoId           String           @map("metodo_pago_id") @db.Uuid
-  horaInicio             DateTime         @default(now()) @map("hora_inicio") @db.Timestamp(6)
-  horaFin                DateTime?        @map("hora_fin") @db.Timestamp(6)
-  duracionHorasEstimada  Int              @map("duracion_horas_estimada")
-  duracionHorasReal      Decimal?         @map("duracion_horas_real") @db.Decimal(5, 2)
-  tarifaHora             Decimal          @map("tarifa_hora") @db.Decimal(10, 2)
-  costoEstimado          Decimal          @map("costo_estimado") @db.Decimal(10, 2)
-  costoFinal             Decimal?         @map("costo_final") @db.Decimal(10, 2)
-  moneda                 String           @default("COP") @db.VarChar(10)
-  descuentoAplicado      Decimal          @default(0) @map("descuento_aplicado") @db.Decimal(10, 2)
-  penalizacion           Decimal          @default(0) @db.Decimal(10, 2)
-  estado                 AlquilerEstado   @default(activo)
-  fechaCreacion          DateTime         @default(now()) @map("fecha_creacion") @db.Timestamp(6)
+model Rental {
+  id                    String         @id @default(uuid()) @db.Uuid
+  userId                String         @db.Uuid
+  powerBankId           String         @db.Uuid
+  pickupStationId       String         @db.Uuid
+  couponId              String?        @db.Uuid
+  paymentMethodId       String         @db.Uuid
+  startTime             DateTime       @default(now()) @db.Timestamp(6)
+  endTime               DateTime?      @db.Timestamp(6)
+  estimatedDurationHrs  Int
+  actualDurationHrs     Decimal?       @db.Decimal(5, 2)
+  hourlyRate            Decimal        @db.Decimal(10, 2)
+  estimatedCost         Decimal        @db.Decimal(10, 2)
+  finalCost             Decimal?       @db.Decimal(10, 2)
+  currency              String         @default("COP") @db.VarChar(10)
+  discountApplied       Decimal        @default(0) @db.Decimal(10, 2)
+  penalty               Decimal        @default(0) @db.Decimal(10, 2)
+  status                RentalStatus   @default(active)
+  createdAt             DateTime       @default(now()) @db.Timestamp(6)
 
-  usuario       Usuario      @relation(fields: [usuarioId], references: [id])
-  powerBank     PowerBank    @relation(fields: [powerBankId], references: [id])
-  estacionRetiro Estacion    @relation(fields: [estacionRetiroId], references: [id])
-  cupon         Cupon?       @relation(fields: [cuponId], references: [id])
-  metodoPago    MetodoPago   @relation(fields: [metodoPagoId], references: [id])
-  pagos         Pago[]
+  user           User          @relation(fields: [userId], references: [id])
+  powerBank      PowerBank     @relation(fields: [powerBankId], references: [id])
+  pickupStation  Station       @relation(fields: [pickupStationId], references: [id])
+  coupon         Coupon?       @relation(fields: [couponId], references: [id])
+  paymentMethod  PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  payments       Payment[]
 
-  @@index([usuarioId])
-  @@index([estado])
-  @@index([usuarioId, estado], name: "idx_alquileres_activos")
-  @@map("alquileres")
+  @@index([userId])
+  @@index([status])
+  @@index([userId, status], name: "idx_rentals_active")
+  @@map("rentals")
 }
 ```
 

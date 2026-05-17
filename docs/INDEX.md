@@ -26,7 +26,7 @@
 | Definir un nuevo error code | `API_CONTRACT.md` § "4. Catálogo de error.code" (L156) + § "4.1 Convención" (L158) + § "4.2 Catálogo" (L162); `BACKEND_ARCHITECTURE.md` § "11.1 Jerarquía" (L635) |
 | Agregar una nueva env var | `BACKEND_ARCHITECTURE.md` § "12. Configuración (env vars)" (L685) + § "12.4 Validación de tipos" (L700); `INFRASTRUCTURE.md` § "3.2 Lista completa" (L184) + § "3.4 Reglas" (L246) |
 | Hacer una migración de DB | `DATABASE_MIGRATIONS.md` § "3. Workflow de migraciones" (L103) + § "3.1 Dev" (L105) + § "4. Migrations backward-compatible" (L149) |
-| Manejar dinero en un modelo | `DATABASE_MIGRATIONS.md` § "2.3 Decimales" (L93) + § "2.2 Ejemplo de mapeo Prisma" (L56); `API_CONTRACT.md` § "1.4 Por qué decimales como string" (L45) |
+| Manejar dinero en un modelo | `DATABASE_MIGRATIONS.md` § "2.3 Decimales" (L93) + § "2.2 Ejemplo de modelo Prisma" (L56); `API_CONTRACT.md` § "1.4 Por qué decimales como string" (L45) |
 | Implementar un adapter de pasarela de pago | `PAYMENT_GATEWAY.md` § "2. Interfaz PaymentGateway" (L29) + § "2.1 Definición canónica (TypeScript)" (L31) + § "3. Adapters" (L210) + § "9. Cómo agregar una nueva pasarela" (L478) |
 | Validar firma HMAC de webhook | `BACKEND_SECURITY.md` § "6.3 Webhooks firmados" (L290); `PAYMENT_GATEWAY.md` § "7. Seguridad — no negociables" (L431); `API_CONTRACT.md` § "8. Webhooks de pasarela" (L772) |
 | Logear sin filtrar PII | `BACKEND_SECURITY.md` § "11.2 Qué NO se logea (Pino redactor obligatorio)" (L433) + § "11.4 PII en Sentry" (L450); `INFRASTRUCTURE.md` § "8.1 Logging" (L426) |

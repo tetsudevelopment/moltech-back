@@ -551,7 +551,7 @@ No leer los 7 docs completos para cada tarea — usá grep o la tabla del §5 pa
 | `docs/BACKEND_SECURITY.md` | Autenticación, autorización, almacenamiento de datos sensibles, pagos no-negociables, logs PII, rate limiting, CORS, headers, incidentes | Antes de tocar auth, tokens, passwords, pagos, webhooks, o PII |
 | `docs/API_CONTRACT.md` | Envelope `{data, meta, error}`, catálogo de error codes, todos los endpoints con shapes exactos, paginación, idempotency, versionado | Al agregar o modificar un endpoint. Fuente de verdad del contrato cliente-servidor |
 | `docs/PAYMENT_GATEWAY.md` | Interfaz `PaymentGateway`, adapters (Mock, PaymentsWay), flujo de cobro, flujo de webhook, mapeo de decline codes, cómo agregar una pasarela nueva | Cualquier trabajo en `src/modules/payments/**` o `src/modules/webhooks/**` |
-| `docs/DATABASE_MIGRATIONS.md` | Naming español snake_case, workflow de migrations, seeds, rollback, permisos DB, backups | Al cambiar el schema de Prisma o agregar tablas/columnas |
+| `docs/DATABASE_MIGRATIONS.md` | Naming english snake_case (conv. cambiada 2026-05-17), workflow de migrations, seeds, rollback, permisos DB, backups | Al cambiar el schema de Prisma o agregar tablas/columnas |
 | `docs/BACKEND_TESTING.md` | Pirámide de tests, Testcontainers setup, fixtures, coverage targets, qué mockear vs qué no, anti-patrones | Al escribir cualquier test, especialmente en payments y auth |
 | `docs/INFRASTRUCTURE.md` | Dockerfile multi-stage, docker-compose dev, env vars completas, CI/CD, health checks, hosting, observabilidad | Al cambiar infra, Dockerfile, env vars, o CI pipeline |
 
