@@ -27,11 +27,11 @@ const activeUser: User = {
   id: 'user-uuid-001',
   email: 'user@example.com',
   passwordHash: '$argon2id$v=19$m=19456,t=2,p=1$hash',
-  nombres: 'John',
-  apellidos: 'Doe',
-  telefono: null,
+  firstName: 'John',
+  lastName: 'Doe',
+  phone: null,
   authProvider: 'email',
-  estado: 'activo',
+  status: 'active',
   createdAt: new Date('2026-01-01T00:00:00Z'),
 };
 
@@ -230,7 +230,7 @@ describe('LoginService', () => {
 
   describe('account suspended', () => {
     beforeEach(() => {
-      mockFindByEmail.mockResolvedValue({ ...activeUser, estado: 'suspendido' });
+      mockFindByEmail.mockResolvedValue({ ...activeUser, status: 'suspended' });
     });
 
     it('throws UnauthorizedException', async () => {
@@ -262,7 +262,7 @@ describe('LoginService', () => {
 
   describe('account inactive', () => {
     beforeEach(() => {
-      mockFindByEmail.mockResolvedValue({ ...activeUser, estado: 'inactivo' });
+      mockFindByEmail.mockResolvedValue({ ...activeUser, status: 'inactive' });
     });
 
     it('throws UnauthorizedException', async () => {

@@ -15,21 +15,21 @@ const mockEmit = jest.fn();
 const validDto: RegisterDto = {
   email: 'user@example.com',
   password: 'ValidPass1',
-  nombres: 'John',
-  apellidos: 'Doe',
-  telefono: undefined,
-  acepta_politica: true,
+  first_name: 'John',
+  last_name: 'Doe',
+  phone: undefined,
+  accepted_policy: true,
 };
 
 const fakeUser = {
   id: 'user-uuid-1',
   email: 'user@example.com',
   passwordHash: '$argon2id$hashed',
-  nombres: 'John',
-  apellidos: 'Doe',
-  telefono: null,
+  firstName: 'John',
+  lastName: 'Doe',
+  phone: null,
   authProvider: 'email' as const,
-  estado: 'activo' as const,
+  status: 'active' as const,
   createdAt: new Date(),
 };
 
@@ -75,10 +75,10 @@ describe('RegisterService', () => {
     expect(mockCreateWithEmail).toHaveBeenCalledWith({
       email: 'user@example.com',
       passwordHash: '$argon2id$hashed',
-      nombres: 'John',
-      apellidos: 'Doe',
-      telefono: null,
-      aceptaPolitica: true,
+      firstName: 'John',
+      lastName: 'Doe',
+      phone: null,
+      acceptedPolicy: true,
     });
   });
 

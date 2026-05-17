@@ -39,10 +39,10 @@ export class RegisterService {
     const input: CreateEmailUserInput = {
       email: dto.email,
       passwordHash,
-      nombres: dto.nombres,
-      apellidos: dto.apellidos,
-      telefono: dto.telefono ?? null,
-      aceptaPolitica: dto.acepta_politica,
+      firstName: dto.first_name,
+      lastName: dto.last_name,
+      phone: dto.phone ?? null,
+      acceptedPolicy: dto.accepted_policy,
     };
 
     const user = await this.users.createWithEmail(input);

@@ -2,11 +2,11 @@ export interface User {
   id: string;
   email: string | null;
   passwordHash: string | null;
-  nombres: string;
-  apellidos: string;
-  telefono: string | null;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
   authProvider: 'email' | 'google' | 'facebook';
-  estado: 'activo' | 'suspendido' | 'inactivo';
+  status: 'active' | 'suspended' | 'inactive';
   createdAt: Date;
 }
 

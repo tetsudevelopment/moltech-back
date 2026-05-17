@@ -22,9 +22,9 @@ const mockLogout = jest.fn();
 const validBody = {
   email: 'user@example.com',
   password: 'ValidPass1',
-  nombres: 'John',
-  apellidos: 'Doe',
-  acepta_politica: true,
+  first_name: 'John',
+  last_name: 'Doe',
+  accepted_policy: true,
 };
 
 const validLoginBody = {
@@ -37,11 +37,11 @@ const fakeRequest = { id: 'req-abc', ip: '127.0.0.1' } as never;
 const fakePublicUser = {
   id: 'user-uuid-001',
   email: 'user@example.com',
-  nombres: 'John',
-  apellidos: 'Doe',
-  telefono: null,
+  firstName: 'John',
+  lastName: 'Doe',
+  phone: null,
   authProvider: 'email' as const,
-  estado: 'activo' as const,
+  status: 'active' as const,
   createdAt: new Date('2026-01-01T00:00:00Z'),
 };
 
@@ -103,7 +103,7 @@ describe('AuthController', () => {
       const pipe = new ZodValidationPipe(RegisterSchema);
 
       expect(() =>
-        pipe.transform({ email: 'not-an-email', password: 'short', nombres: '', apellidos: '' }),
+        pipe.transform({ email: 'not-an-email', password: 'short', first_name: '', last_name: '' }),
       ).toThrow(ZodError);
     });
 
@@ -137,9 +137,9 @@ describe('AuthController', () => {
         user: {
           id: fakePublicUser.id,
           email: fakePublicUser.email,
-          nombres: fakePublicUser.nombres,
-          apellidos: fakePublicUser.apellidos,
-          estado: fakePublicUser.estado,
+          first_name: fakePublicUser.firstName,
+          last_name: fakePublicUser.lastName,
+          status: fakePublicUser.status,
         },
       });
     });
@@ -213,7 +213,7 @@ describe('AuthController', () => {
 
       await controller.logout(dto, fakeRequest);
 
-      expect(mockLogoutLogout).toHaveBeenCalledTimes(1);
+      expect(mockLogout).toHaveBeenCalledTimes(1);
     });
 
     it('does NOT throw even if LogoutService.logout would fail (service is permissive)', async () => {

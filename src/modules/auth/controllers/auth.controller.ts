@@ -64,9 +64,9 @@ export class AuthController {
     user: {
       id: string;
       email: string | null;
-      nombres: string;
-      apellidos: string;
-      estado: string;
+      first_name: string;
+      last_name: string;
+      status: string;
     };
   }> {
     const result = await this.loginService.login(dto, {
@@ -80,9 +80,9 @@ export class AuthController {
       user: {
         id: result.user.id,
         email: result.user.email,
-        nombres: result.user.nombres,
-        apellidos: result.user.apellidos,
-        estado: result.user.estado,
+        first_name: result.user.firstName,
+        last_name: result.user.lastName,
+        status: result.user.status,
       },
     };
   }

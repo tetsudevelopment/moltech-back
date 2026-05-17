@@ -8,10 +8,10 @@ import { type User } from '../domain/user.types';
 export interface CreateEmailUserInput {
   email: string;
   passwordHash: string;
-  nombres: string;
-  apellidos: string;
-  telefono: string | null;
-  aceptaPolitica: boolean;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  acceptedPolicy: boolean;
 }
 
 @Injectable()
@@ -19,7 +19,7 @@ export class UserRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByEmail(email: string): Promise<User | null> {
-    const row = await this.prisma.usuarios.findUnique({
+    const row = await this.prisma.users.findUnique({
       where: { email: email.toLowerCase() },
     });
     return row ? this.mapToDomain(row) : null;
@@ -27,14 +27,14 @@ export class UserRepository {
 
   async createWithEmail(input: CreateEmailUserInput): Promise<User> {
     try {
-      const row = await this.prisma.usuarios.create({
+      const row = await this.prisma.users.create({
         data: {
           email: input.email.toLowerCase(),
           password_hash: input.passwordHash,
-          nombres: input.nombres,
-          apellidos: input.apellidos,
-          telefono: input.telefono,
-          acepta_politica: input.aceptaPolitica,
+          first_name: input.firstName,
+          last_name: input.lastName,
+          phone: input.phone,
+          accepted_policy: input.acceptedPolicy,
           auth_provider: 'email',
         },
       });
@@ -51,23 +51,23 @@ export class UserRepository {
     id: string;
     email: string | null;
     password_hash: string | null;
-    nombres: string;
-    apellidos: string;
-    telefono: string | null;
+    first_name: string;
+    last_name: string;
+    phone: string | null;
     auth_provider: string;
-    estado: string;
-    fecha_registro: Date;
+    status: string;
+    created_at: Date;
   }): User {
     return {
       id: row.id,
       email: row.email,
       passwordHash: row.password_hash,
-      nombres: row.nombres,
-      apellidos: row.apellidos,
-      telefono: row.telefono,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      phone: row.phone,
       authProvider: row.auth_provider as User['authProvider'],
-      estado: row.estado as User['estado'],
-      createdAt: row.fecha_registro,
+      status: row.status as User['status'],
+      createdAt: row.created_at,
     };
   }
 }

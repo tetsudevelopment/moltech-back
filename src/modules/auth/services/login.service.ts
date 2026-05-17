@@ -55,12 +55,12 @@ export class LoginService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    if (user.estado === 'suspendido') {
+    if (user.status === 'suspended') {
       this.emitFailure(user.id, 'account_suspended', context);
       throw new UnauthorizedException('Cuenta suspendida');
     }
 
-    if (user.estado === 'inactivo') {
+    if (user.status === 'inactive') {
       this.emitFailure(user.id, 'account_inactive', context);
       throw new UnauthorizedException('Cuenta inactiva');
     }
@@ -80,11 +80,11 @@ export class LoginService {
     const publicUser: PublicUser = {
       id: user.id,
       email: user.email,
-      nombres: user.nombres,
-      apellidos: user.apellidos,
-      telefono: user.telefono,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
       authProvider: user.authProvider,
-      estado: user.estado,
+      status: user.status,
       createdAt: user.createdAt,
     };
     return { accessToken, refreshToken, user: publicUser };
