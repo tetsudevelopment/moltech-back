@@ -73,7 +73,15 @@ export default tseslint.config(
             // module-root orchestrates its own layers
             {
               from: 'module-root',
-              allow: ['controllers', 'services', 'repositories', 'listeners', 'common', 'config', 'infrastructure'],
+              allow: [
+                'controllers',
+                'services',
+                'repositories',
+                'listeners',
+                'common',
+                'config',
+                'infrastructure',
+              ],
             },
             // controllers: service + dtos + common + config
             {
@@ -83,7 +91,15 @@ export default tseslint.config(
             // services: repos + domain + common + events + config + infrastructure
             {
               from: 'services',
-              allow: ['repositories', 'domain', 'dtos', 'events', 'common', 'config', 'infrastructure'],
+              allow: [
+                'repositories',
+                'domain',
+                'dtos',
+                'events',
+                'common',
+                'config',
+                'infrastructure',
+              ],
             },
             // repositories: prisma + common + domain
             {
@@ -116,10 +132,19 @@ export default tseslint.config(
         'error',
         {
           paths: [
-            { name: 'class-validator', message: 'Use Zod for validation. class-validator is prohibited.' },
-            { name: 'class-transformer', message: 'Use Zod for validation. class-transformer is prohibited.' },
+            {
+              name: 'class-validator',
+              message: 'Use Zod for validation. class-validator is prohibited.',
+            },
+            {
+              name: 'class-transformer',
+              message: 'Use Zod for validation. class-transformer is prohibited.',
+            },
             { name: 'bcrypt', message: 'Use argon2 for password hashing. bcrypt is prohibited.' },
-            { name: 'bcryptjs', message: 'Use argon2 for password hashing. bcryptjs is prohibited.' },
+            {
+              name: 'bcryptjs',
+              message: 'Use argon2 for password hashing. bcryptjs is prohibited.',
+            },
           ],
         },
       ],
@@ -131,7 +156,8 @@ export default tseslint.config(
         'error',
         {
           selector: 'MemberExpression[object.name="process"][property.name="env"]',
-          message: 'Access env vars via ConfigService, not process.env directly. Only src/config/** is exempt.',
+          message:
+            'Access env vars via ConfigService, not process.env directly. Only src/config/** is exempt.',
         },
       ],
 

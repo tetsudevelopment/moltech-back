@@ -163,11 +163,6 @@
     "Rioplatense",
     "voseo"
   ],
-  "flagWords": [
-    "transaccion"
-  ],
-  "ignoreRegExpList": [
-    "/0x[0-9a-fA-F]+/g",
-    "/[A-Z]{2,}_[A-Z0-9_]+/g"
-  ]
+  "flagWords": ["transaccion"],
+  "ignoreRegExpList": ["/0x[0-9a-fA-F]+/g", "/[A-Z]{2,}_[A-Z0-9_]+/g"]
 }

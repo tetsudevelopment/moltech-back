@@ -1,8 +1,22 @@
+# Build / deps
 node_modules
 dist
 build
 coverage
 .next
-pnpm-lock.yaml
 *.tsbuildinfo
+pnpm-lock.yaml
+
+# Prisma
 prisma/migrations
+
+# Markdown autorado a mano — Prettier rompe el layout de tablas con anchuras grandes
+docs/**
+CLAUDE.md
+AGENTS.md
+README.md
+*.md
+
+# Secrets / generated
+.env
+.env.*
