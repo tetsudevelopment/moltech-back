@@ -13,6 +13,7 @@ import { ConfigModule } from '@/config/config.module';
 import { AppConfigService } from '@/config/config.service';
 import { PrismaModule } from '@/infrastructure/prisma/prisma.module';
 import { RedisModule } from '@/infrastructure/redis/redis.module';
+import { AuditModule } from '@/modules/audit/audit.module';
 import { HealthModule } from '@/modules/health/health.module';
 
 const REDACTED_PATHS = [
@@ -72,6 +73,7 @@ const REDACTED_PATHS = [
     AppThrottlerModule,
     PrismaModule,
     RedisModule,
+    AuditModule,
     HealthModule,
   ],
   providers: [
