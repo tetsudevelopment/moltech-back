@@ -1,0 +1,56 @@
+# Git & VCS
+.git
+.gitignore
+.gitattributes
+
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Build artifacts
+dist
+build
+coverage
+*.tsbuildinfo
+
+# Editor / IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env files (NEVER copy into image — runtime provides via env vars)
+# .env.example tampoco se copia: no tiene utilidad en runtime
+.env
+.env.*
+
+# Docs (not needed inside container)
+docs
+*.md
+!README.md
+
+# Test files (not needed in production image)
+**/*.spec.ts
+**/*.e2e-spec.ts
+test
+jest.config.ts
+jest.e2e.config.ts
+
+# Tooling configs not needed at runtime
+.editorconfig
+.prettierrc*
+.prettierignore
+eslint.config.mjs
+cspell.json
+.engram
+
+# Docker itself
+Dockerfile
+docker-compose*.yml
+.dockerignore

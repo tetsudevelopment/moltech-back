@@ -1,0 +1,50 @@
+version: '3.9'
+
+# Dev compose: solo infraestructura (Postgres + Redis).
+# La API corre en el host con `pnpm start:dev` para hot-reload nativo.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: moltech_postgres_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - moltech_dev
+
+  redis:
+    image: redis:7-alpine
+    container_name: moltech_redis_dev
+    restart: unless-stopped
+    command: ['redis-server', '--save', '60', '1000', '--appendonly', 'yes']
+    ports:
+      - '127.0.0.1:6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - moltech_dev
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  moltech_dev:
+    driver: bridge
