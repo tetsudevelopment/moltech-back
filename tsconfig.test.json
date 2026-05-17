@@ -8,6 +8,7 @@
   "include": [
     "src/**/*",
     "test/**/*",
+    "scripts/**/*",
     "jest.config.ts",
     "jest.e2e.config.ts",
     "commitlint.config.cjs"
