@@ -1,4 +1,3 @@
-// eslint-disable-next-line no-restricted-syntax
 Object.assign(process.env, {
   NODE_ENV: 'test',
   PORT: '3001',

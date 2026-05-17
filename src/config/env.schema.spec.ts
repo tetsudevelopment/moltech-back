@@ -40,7 +40,7 @@ describe('EnvSchema', () => {
 
     it('applies default PORT=3000 when PORT is absent', () => {
       const env = validEnvFixture();
-      delete env['PORT'];
+      delete env.PORT;
       const result = EnvSchema.safeParse(env);
       expect(result.success).toBe(true);
       if (result.success) expect(result.data.PORT).toBe(3000);
@@ -67,21 +67,21 @@ describe('EnvSchema', () => {
   describe('required field validation', () => {
     it('fails when NODE_ENV is missing', () => {
       const env = validEnvFixture();
-      delete env['NODE_ENV'];
+      delete env.NODE_ENV;
       const result = EnvSchema.safeParse(env);
       expect(result.success).toBe(false);
     });
 
     it('fails when DATABASE_URL is missing', () => {
       const env = validEnvFixture();
-      delete env['DATABASE_URL'];
+      delete env.DATABASE_URL;
       const result = EnvSchema.safeParse(env);
       expect(result.success).toBe(false);
     });
 
     it('fails when JWT_PRIVATE_KEY is missing', () => {
       const env = validEnvFixture();
-      delete env['JWT_PRIVATE_KEY'];
+      delete env.JWT_PRIVATE_KEY;
       const result = EnvSchema.safeParse(env);
       expect(result.success).toBe(false);
     });
@@ -192,8 +192,8 @@ describe('EnvSchema', () => {
   describe('Sentry optional fields', () => {
     it('passes without SENTRY_DSN or SENTRY_ENVIRONMENT', () => {
       const env = validEnvFixture();
-      delete env['SENTRY_DSN'];
-      delete env['SENTRY_ENVIRONMENT'];
+      delete env.SENTRY_DSN;
+      delete env.SENTRY_ENVIRONMENT;
       const result = EnvSchema.safeParse(env);
       expect(result.success).toBe(true);
     });

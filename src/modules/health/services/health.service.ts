@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { RedisService } from '@/infrastructure/redis/redis.service';
 

@@ -3,11 +3,11 @@ import { APP_FILTER } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { LoggerModule } from 'nestjs-pino';
 
+import { GlobalExceptionFilter } from '@/common/filters/global-exception.filter';
 import { ConfigModule } from '@/config/config.module';
 import { AppConfigService } from '@/config/config.service';
 import { PrismaModule } from '@/infrastructure/prisma/prisma.module';
 import { RedisModule } from '@/infrastructure/redis/redis.module';
-import { GlobalExceptionFilter } from '@/common/filters/global-exception.filter';
 import { HealthModule } from '@/modules/health/health.module';
 
 const REDACTED_PATHS = [

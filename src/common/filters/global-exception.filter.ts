@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import {
   type ArgumentsHost,
   Catch,
@@ -12,7 +14,6 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ZodError } from 'zod';
-import { randomUUID } from 'crypto';
 
 const HTTP_STATUS_TO_CODE: Record<number, string> = {
   400: 'BAD_REQUEST',
@@ -69,7 +70,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.warn({ requestId, code }, 'Not found');
     } else if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
-      code = HTTP_STATUS_TO_CODE[statusCode] ?? `HTTP_${statusCode}`;
+      code = HTTP_STATUS_TO_CODE[statusCode] ?? `HTTP_${String(statusCode)}`;
       message = exception.message;
       this.logger.warn({ requestId, code, statusCode }, 'HTTP exception');
     } else {

@@ -1,5 +1,6 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import Redis, { type Redis as RedisClient } from 'ioredis';
+
 import { AppConfigService } from '@/config/config.service';
 
 @Injectable()
@@ -34,7 +35,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async ping(): Promise<'PONG'> {
-    const result = await this.getClient().ping();
+    const result: string = await this.getClient().ping();
     if (result !== 'PONG') {
       throw new Error(`Unexpected ping response: ${result}`);
     }

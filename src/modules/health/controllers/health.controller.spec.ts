@@ -1,5 +1,6 @@
-import { Test, type TestingModule } from '@nestjs/testing';
 import { HttpException, HttpStatus } from '@nestjs/common';
+import { Test, type TestingModule } from '@nestjs/testing';
+
 import { HealthController } from './health.controller';
 import { HealthService } from '../services/health.service';
 

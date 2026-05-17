@@ -14,18 +14,22 @@ export default tseslint.config(
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
 
+  // ── Global parser options: tsconfig.test.json covers src + test + configs ──
+  {
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.test.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+
   // ── Main source config ─────────────────────────────────────────────────────
   {
     files: ['src/**/*.ts'],
     plugins: {
       boundaries,
       import: importPlugin,
-    },
-    languageOptions: {
-      parserOptions: {
-        project: './tsconfig.json',
-        tsconfigRootDir: import.meta.dirname,
-      },
     },
     settings: {
       // eslint-plugin-boundaries: declare architecture layers
@@ -185,6 +189,14 @@ export default tseslint.config(
     files: ['src/config/**/*.ts'],
     rules: {
       'no-restricted-syntax': 'off',
+    },
+  },
+
+  // ── NestJS module files: empty decorator-only classes are the pattern ────
+  {
+    files: ['**/*.module.ts'],
+    rules: {
+      '@typescript-eslint/no-extraneous-class': 'off',
     },
   },
 

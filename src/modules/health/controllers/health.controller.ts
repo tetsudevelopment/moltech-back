@@ -1,5 +1,6 @@
 import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
 import type { Response } from 'express';
+
 import { HealthService, type LiveResult, type ReadyResult } from '../services/health.service';
 
 @Controller('health')

@@ -1,8 +1,14 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import request from 'supertest';
+import type { App } from 'supertest/types';
 
 import { AppModule } from '@/app.module';
+
+interface ReadyBody {
+  status: 'ready' | 'not_ready';
+  checks: { db: 'ok' | 'fail'; redis: 'ok' | 'fail' };
+}
 
 describe('Health (e2e)', () => {
   let app: INestApplication;
@@ -24,16 +30,17 @@ describe('Health (e2e)', () => {
   });
 
   it('GET /api/v1/health/live returns 200 with { status: "ok" }', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/health/live');
+    const res = await request(app.getHttpServer() as App).get('/api/v1/health/live');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: 'ok' });
   });
 
   it('GET /api/v1/health/ready returns 200 with ready status when deps are up', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/health/ready');
+    const res = await request(app.getHttpServer() as App).get('/api/v1/health/ready');
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe('ready');
-    expect(res.body.checks.db).toBe('ok');
-    expect(res.body.checks.redis).toBe('ok');
+    const body = res.body as ReadyBody;
+    expect(body.status).toBe('ready');
+    expect(body.checks.db).toBe('ok');
+    expect(body.checks.redis).toBe('ok');
   });
 });
