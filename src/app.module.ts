@@ -1,11 +1,14 @@
 import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
 import { GlobalExceptionFilter } from '@/common/filters/global-exception.filter';
+import { TimeoutInterceptor } from '@/common/interceptors/timeout.interceptor';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
 import { RequestIdMiddleware } from '@/common/middleware/request-id.middleware';
+import { AppThrottlerModule } from '@/common/throttler/throttler.module';
 import { ConfigModule } from '@/config/config.module';
 import { AppConfigService } from '@/config/config.service';
 import { PrismaModule } from '@/infrastructure/prisma/prisma.module';
@@ -66,6 +69,7 @@ const REDACTED_PATHS = [
       maxListeners: 10,
       verboseMemoryLeak: false,
     }),
+    AppThrottlerModule,
     PrismaModule,
     RedisModule,
     HealthModule,
@@ -74,6 +78,14 @@ const REDACTED_PATHS = [
     {
       provide: APP_FILTER,
       useClass: GlobalExceptionFilter,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useFactory: () => new TimeoutInterceptor(10_000),
     },
     {
       provide: APP_INTERCEPTOR,
