@@ -107,10 +107,10 @@ export default tseslint.config(
                 'services',
               ],
             },
-            // repositories: prisma + common + domain
+            // repositories: prisma + common + domain + config (TTL/connection settings)
             {
               from: 'repositories',
-              allow: ['prisma', 'common', 'domain', 'infrastructure'],
+              allow: ['prisma', 'common', 'domain', 'infrastructure', 'config'],
             },
             // listeners: services + events + common
             {

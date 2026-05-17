@@ -1,14 +1,17 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ZodError } from 'zod';
 
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe';
+import { LoginSchema } from '@/modules/auth/dtos/login.dto';
 import { RegisterSchema } from '@/modules/auth/dtos/register.dto';
 
 import { AuthController } from './auth.controller';
+import { LoginService } from '../services/login.service';
 import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
 
 const mockRegister = jest.fn();
+const mockLogin = jest.fn();
 
 const validBody = {
   email: 'user@example.com',
@@ -18,7 +21,23 @@ const validBody = {
   acepta_politica: true,
 };
 
+const validLoginBody = {
+  email: 'user@example.com',
+  password: 'ValidPass1!',
+};
+
 const fakeRequest = { id: 'req-abc', ip: '127.0.0.1' } as never;
+
+const fakePublicUser = {
+  id: 'user-uuid-001',
+  email: 'user@example.com',
+  nombres: 'John',
+  apellidos: 'Doe',
+  telefono: null,
+  authProvider: 'email' as const,
+  estado: 'activo' as const,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+};
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -26,10 +45,18 @@ describe('AuthController', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockRegister.mockResolvedValue({ userId: 'new-user-uuid' });
+    mockLogin.mockResolvedValue({
+      accessToken: 'access-token-value',
+      refreshToken: 'refresh-token-value',
+      user: fakePublicUser,
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
-      providers: [{ provide: RegisterService, useValue: { register: mockRegister } }],
+      providers: [
+        { provide: RegisterService, useValue: { register: mockRegister } },
+        { provide: LoginService, useValue: { login: mockLogin } },
+      ],
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
@@ -73,6 +100,48 @@ describe('AuthController', () => {
       const dto = RegisterSchema.parse(validBody);
 
       await expect(controller.register(dto, fakeRequest)).rejects.toThrow('Unexpected DB failure');
+    });
+  });
+
+  describe('POST /auth/login', () => {
+    it('calls LoginService.login with parsed DTO and request context', async () => {
+      const dto = LoginSchema.parse(validLoginBody);
+
+      await controller.login(dto, fakeRequest);
+
+      expect(mockLogin).toHaveBeenCalledWith(dto, { requestId: 'req-abc', ip: '127.0.0.1' });
+    });
+
+    it('returns 200 with snake_case envelope containing access_token, refresh_token, expires_in, and user', async () => {
+      const dto = LoginSchema.parse(validLoginBody);
+
+      const result = await controller.login(dto, fakeRequest);
+
+      expect(result).toMatchObject({
+        access_token: 'access-token-value',
+        refresh_token: 'refresh-token-value',
+        expires_in: 900,
+        user: {
+          id: fakePublicUser.id,
+          email: fakePublicUser.email,
+          nombres: fakePublicUser.nombres,
+          apellidos: fakePublicUser.apellidos,
+          estado: fakePublicUser.estado,
+        },
+      });
+    });
+
+    it('propagates UnauthorizedException from LoginService (filter handles envelope)', async () => {
+      mockLogin.mockRejectedValue(new UnauthorizedException('Credenciales inválidas'));
+      const dto = LoginSchema.parse(validLoginBody);
+
+      await expect(controller.login(dto, fakeRequest)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('login DTO validation fails → ZodValidationPipe throws ZodError', () => {
+      const pipe = new ZodValidationPipe(LoginSchema);
+
+      expect(() => pipe.transform({ email: 'not-an-email', password: '' })).toThrow(ZodError);
     });
   });
 });
