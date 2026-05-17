@@ -4,14 +4,20 @@ import { ZodError } from 'zod';
 
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe';
 import { LoginSchema } from '@/modules/auth/dtos/login.dto';
+import { LogoutSchema } from '@/modules/auth/dtos/logout.dto';
+import { RefreshSchema } from '@/modules/auth/dtos/refresh.dto';
 import { RegisterSchema } from '@/modules/auth/dtos/register.dto';
 
 import { AuthController } from './auth.controller';
 import { LoginService } from '../services/login.service';
+import { LogoutService } from '../services/logout.service';
+import { RefreshService } from '../services/refresh.service';
 import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
 
 const mockRegister = jest.fn();
 const mockLogin = jest.fn();
+const mockRefresh = jest.fn();
+const mockLogout = jest.fn();
 
 const validBody = {
   email: 'user@example.com',
@@ -50,12 +56,19 @@ describe('AuthController', () => {
       refreshToken: 'refresh-token-value',
       user: fakePublicUser,
     });
+    mockRefresh.mockResolvedValue({
+      accessToken: 'new-access-token',
+      refreshToken: 'new-refresh-token',
+    });
+    mockLogout.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
         { provide: RegisterService, useValue: { register: mockRegister } },
         { provide: LoginService, useValue: { login: mockLogin } },
+        { provide: RefreshService, useValue: { refresh: mockRefresh } },
+        { provide: LogoutService, useValue: { logout: mockLogout } },
       ],
     }).compile();
 
@@ -142,6 +155,79 @@ describe('AuthController', () => {
       const pipe = new ZodValidationPipe(LoginSchema);
 
       expect(() => pipe.transform({ email: 'not-an-email', password: '' })).toThrow(ZodError);
+    });
+  });
+
+  describe('POST /auth/refresh', () => {
+    it('calls RefreshService.refresh with parsed DTO and request context', async () => {
+      const dto = RefreshSchema.parse({ refresh_token: 'some-refresh-token' });
+
+      await controller.refresh(dto, fakeRequest);
+
+      expect(mockRefresh).toHaveBeenCalledWith('some-refresh-token', {
+        requestId: 'req-abc',
+        ip: '127.0.0.1',
+      });
+    });
+
+    it('returns 200 with access_token, refresh_token, and expires_in', async () => {
+      const dto = RefreshSchema.parse({ refresh_token: 'some-refresh-token' });
+
+      const result = await controller.refresh(dto, fakeRequest);
+
+      expect(result).toMatchObject({
+        access_token: 'new-access-token',
+        refresh_token: 'new-refresh-token',
+        expires_in: 900,
+      });
+    });
+
+    it('propagates UnauthorizedException from RefreshService (filter envelopes it as 401)', async () => {
+      mockRefresh.mockRejectedValue(new UnauthorizedException('Refresh token reuse detected'));
+      const dto = RefreshSchema.parse({ refresh_token: 'reused-token' });
+
+      await expect(controller.refresh(dto, fakeRequest)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('refresh DTO validation fails → ZodValidationPipe throws ZodError', () => {
+      const pipe = new ZodValidationPipe(RefreshSchema);
+
+      expect(() => pipe.transform({ refresh_token: '' })).toThrow(ZodError);
+    });
+  });
+
+  describe('POST /auth/logout', () => {
+    it('calls LogoutService.logout with parsed DTO and request context', async () => {
+      const dto = LogoutSchema.parse({ refresh_token: 'some-refresh-token' });
+
+      await controller.logout(dto, fakeRequest);
+
+      expect(mockLogout).toHaveBeenCalledWith('some-refresh-token', {
+        requestId: 'req-abc',
+        ip: '127.0.0.1',
+      });
+    });
+
+    it('returns void (204 No Content)', async () => {
+      const dto = LogoutSchema.parse({ refresh_token: 'some-refresh-token' });
+
+      await controller.logout(dto, fakeRequest);
+
+      expect(mockLogoutLogout).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT throw even if LogoutService.logout would fail (service is permissive)', async () => {
+      // LogoutService handles its own errors internally; controller trusts it
+      mockLogout.mockResolvedValue(undefined);
+      const dto = LogoutSchema.parse({ refresh_token: 'bad-token' });
+
+      await expect(controller.logout(dto, fakeRequest)).resolves.toBeUndefined();
+    });
+
+    it('logout DTO validation fails → ZodValidationPipe throws ZodError', () => {
+      const pipe = new ZodValidationPipe(LogoutSchema);
+
+      expect(() => pipe.transform({ refresh_token: '' })).toThrow(ZodError);
     });
   });
 });

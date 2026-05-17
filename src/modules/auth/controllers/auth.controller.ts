@@ -12,8 +12,12 @@ import type { Request } from 'express';
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe';
 
 import { type LoginDto, LoginSchema } from '../dtos/login.dto';
+import { type LogoutDto, LogoutSchema } from '../dtos/logout.dto';
+import { type RefreshDto, RefreshSchema } from '../dtos/refresh.dto';
 import { type RegisterDto, RegisterSchema } from '../dtos/register.dto';
 import { LoginService } from '../services/login.service';
+import { LogoutService } from '../services/logout.service';
+import { RefreshService } from '../services/refresh.service';
 import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
 
 @Controller('auth')
@@ -21,6 +25,8 @@ export class AuthController {
   constructor(
     private readonly registerService: RegisterService,
     private readonly loginService: LoginService,
+    private readonly refreshService: RefreshService,
+    private readonly logoutService: LogoutService,
   ) {}
 
   @Post('register')
@@ -79,5 +85,34 @@ export class AuthController {
         estado: result.user.estado,
       },
     };
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(
+    @Body(new ZodValidationPipe(RefreshSchema)) dto: RefreshDto,
+    @Req() req: Request & { id?: string },
+  ): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
+    const result = await this.refreshService.refresh(dto.refresh_token, {
+      requestId: req.id,
+      ip: req.ip,
+    });
+    return {
+      access_token: result.accessToken,
+      refresh_token: result.refreshToken,
+      expires_in: 900, // F3 follow-up: derive from JWT_ACCESS_TTL
+    };
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async logout(
+    @Body(new ZodValidationPipe(LogoutSchema)) dto: LogoutDto,
+    @Req() req: Request & { id?: string },
+  ): Promise<void> {
+    await this.logoutService.logout(dto.refresh_token, {
+      requestId: req.id,
+      ip: req.ip,
+    });
   }
 }
