@@ -1,9 +1,11 @@
-import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { LoggerModule } from 'nestjs-pino';
 
 import { GlobalExceptionFilter } from '@/common/filters/global-exception.filter';
+import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
+import { RequestIdMiddleware } from '@/common/middleware/request-id.middleware';
 import { ConfigModule } from '@/config/config.module';
 import { AppConfigService } from '@/config/config.service';
 import { PrismaModule } from '@/infrastructure/prisma/prisma.module';
@@ -73,6 +75,14 @@ const REDACTED_PATHS = [
       provide: APP_FILTER,
       useClass: GlobalExceptionFilter,
     },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TransformInterceptor,
+    },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}

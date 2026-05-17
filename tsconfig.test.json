@@ -5,6 +5,12 @@
     "noEmit": true,
     "types": ["node", "jest"]
   },
-  "include": ["src/**/*", "test/**/*", "jest.config.ts", "jest.e2e.config.ts"],
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "jest.config.ts",
+    "jest.e2e.config.ts",
+    "commitlint.config.cjs"
+  ],
   "exclude": ["node_modules", "dist"]
 }
