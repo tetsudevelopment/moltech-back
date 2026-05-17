@@ -93,6 +93,7 @@ export default tseslint.config(
               allow: ['services', 'dtos', 'common', 'config'],
             },
             // services: repos + domain + common + events + config + infrastructure
+            // same-module service composition is allowed per BACKEND_ARCHITECTURE.md §3.3
             {
               from: 'services',
               allow: [
@@ -103,6 +104,7 @@ export default tseslint.config(
                 'common',
                 'config',
                 'infrastructure',
+                'services',
               ],
             },
             // repositories: prisma + common + domain
