@@ -1,0 +1,137 @@
+# =============================================================================
+# SECRETS — Esto va primero. Un secret commiteado es un secret comprometido.
+# =============================================================================
+
+# Variables de entorno — NUNCA commitear el .env real
+# .env.example SÍ va al repo (sin valores sensibles)
+.env
+.env.*
+!.env.example
+
+# Claves RSA/TLS/certificados
+# JWT_PRIVATE_KEY, JWT_PUBLIC_KEY, certs de DB, etc.
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+
+# Carpeta de secrets locales
+secrets/
+
+# Configuraciones locales que podrían contener tokens o overrides privados
+*.local.json
+*.local.ts
+*.local.js
+
+# =============================================================================
+# NODE / PNPM
+# =============================================================================
+
+node_modules/
+.pnpm-store/
+
+# Logs de package managers
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# =============================================================================
+# NESTJS / TYPESCRIPT BUILD
+# =============================================================================
+
+# Salida de compilación — nunca commitear binarios generados
+dist/
+build/
+
+# Incremental TypeScript compilation cache
+*.tsbuildinfo
+
+# =============================================================================
+# PRISMA
+# =============================================================================
+
+# Archivos de DB local de SQLite (si se usa en dev ephemero — nosotros usamos Postgres)
+prisma/migrations/dev.db
+prisma/migrations/dev.db-journal
+*.db
+*.db-journal
+
+# =============================================================================
+# TESTING
+# =============================================================================
+
+# Reportes de cobertura generados por jest --coverage
+# No commitear — se genera en CI y se sube a Codecov
+coverage/
+.nyc_output/
+*.lcov
+
+# =============================================================================
+# IDE / EDITORES
+# =============================================================================
+
+# VS Code — el workspace local no es parte del repo
+.vscode/
+!.vscode/extensions.json    # excepción: extensiones recomendadas para el equipo
+
+# JetBrains (WebStorm, IntelliJ)
+.idea/
+*.iml
+
+# Vim/Neovim swap files
+*.swp
+*.swo
+*.swn
+*~
+
+# =============================================================================
+# OS
+# =============================================================================
+
+# macOS metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows thumbnail cache
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+
+# Linux trash
+.Trash-*
+
+# =============================================================================
+# LOGS
+# =============================================================================
+
+# Directorio de logs locales (Pino en prod escribe a stdout, no a archivos)
+logs/
+*.log
+
+# =============================================================================
+# DOCKER
+# =============================================================================
+
+# Datos persistidos por Docker Compose (volúmenes locales)
+.docker/
+
+# docker-compose.yml y docker-compose.prod.yml SÍ van al repo
+# (No los ignoramos)
+
+# =============================================================================
+# MISC
+# =============================================================================
+
+# Reportes de auditoría locales
+audit-report.json
+
+# Archivos temporales
+*.tmp
+*.temp
+.cache/
