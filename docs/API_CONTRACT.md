@@ -1,5 +1,9 @@
 # API_CONTRACT.md — MOLTECH API (source of truth)
 
+> **Última actualización:** 2026-05-17 — schema y campos migrados a inglés snake_case
+> (ver `DATABASE_MIGRATIONS.md §2`). Si todavía ves nombres en español en alguna sección,
+> es un bug del doc, reportalo.
+
 > **Este documento es la fuente única de verdad del contrato REST entre el backend de MOLTECH y sus clientes (móvil, web futuro, partners).**
 >
 > El backend lo **implementa**. Los clientes lo **consumen**. Cualquier divergencia es bug del lado que se aleja del contrato.
@@ -23,7 +27,7 @@
 |---|---|
 | Formato de payload | `application/json` |
 | Encoding | `UTF-8` |
-| Naming en JSON | `camelCase` |
+| Naming en JSON | `snake_case` |
 | Naming en URLs | `kebab-case` (ej: `/payment-methods`) |
 | Identificadores | `UUID v4` |
 | Fechas | `ISO 8601` con timezone (`2026-04-15T14:30:00.000-05:00`) |
@@ -36,11 +40,11 @@
 
 | Plano | Naming |
 |---|---|
-| **DB** (PostgreSQL) | `snake_case` español. Tablas y columnas en español de dominio (`alquileres`, `metodos_pago`, `hora_inicio`). |
-| **Prisma client** | camelCase con `@map`/`@@map`. Términos de dominio en español, técnicos en inglés/español-mixto. |
-| **API JSON** | `camelCase`. Términos de dominio MOLTECH en español (`alquiler`, `estacion`, `costoFinal`); técnicos en inglés (`createdAt`, `pagination`, `meta`). |
+| **DB** (PostgreSQL) | `snake_case` inglés. Tablas y columnas en inglés (`rentals`, `payment_methods`, `start_time`). |
+| **Prisma client** | camelCase con `@map`/`@@map`. |
+| **API JSON** | `snake_case`. Términos de dominio MOLTECH en inglés (`rental`, `station`, `final_cost`); técnicos también en inglés (`created_at`, `pagination`, `meta`). |
 
-Single point of mapping: el backend serializa Prisma → JSON. **Cliente nunca ve snake_case.**
+Single point of mapping: el backend serializa Prisma → JSON. **Cliente nunca ve camelCase mixto.**
 
 ### 1.4 Por qué decimales como string
 
@@ -72,8 +76,8 @@ JS usa float 64-bit. `0.1 + 0.2 = 0.30000000000000004`. Inaceptable para dinero.
 {
   "data": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
-    "nombres": "Juan",
-    "apellidos": "Pérez",
+    "first_name": "Juan",
+    "last_name": "Pérez",
     "email": "juan@example.com"
   },
   "meta": null,
@@ -86,8 +90,8 @@ JS usa float 64-bit. `0.1 + 0.2 = 0.30000000000000004`. Inaceptable para dinero.
 ```json
 {
   "data": [
-    { "id": "...", "nombre": "Estación Centro" },
-    { "id": "...", "nombre": "Estación Norte" }
+    { "id": "...", "name": "Station Centro" },
+    { "id": "...", "name": "Station Norte" }
   ],
   "meta": {
     "pagination": {
@@ -227,7 +231,7 @@ Varía según el `code`. Siempre array u objeto, nunca string.
 
 ### 5.1 Esquema
 
-`Authorization: Bearer <accessToken>` en todas las requests autenticadas.
+`Authorization: Bearer <access_token>` en todas las requests autenticadas.
 
 ### 5.2 Endpoints públicos (sin token)
 
@@ -270,7 +274,7 @@ Operaciones que crean recursos o cobran requieren `Idempotency-Key`:
 
 **Comportamiento:**
 - Valor = UUID v4 generado por cliente.
-- Backend dedupe por `(usuario_id, endpoint, key)` durante **24h** en Redis.
+- Backend dedupe por `(user_id, endpoint, key)` durante **24h** en Redis.
 - Misma key + mismo payload (hash match) → retorna respuesta cacheada.
 - Misma key + payload diferente → `409 IDEMPOTENCY_KEY_CONFLICT`.
 - Sin header en endpoint que lo exige → `400 IDEMPOTENCY_KEY_REQUIRED`.
@@ -292,22 +296,22 @@ Respuesta: `meta.pagination` (ver `§2.3`).
 
 Query params específicos por endpoint.
 
-- Filtros simples: `?estado=activo`
-- CSV: `?estado=activo,finalizado`
-- Rangos: `?fechaDesde=2026-01-01&fechaHasta=2026-01-31`
+- Filtros simples: `?status=active`
+- CSV: `?status=active,completed`
+- Rangos: `?date_from=2026-01-01&date_to=2026-01-31`
 - Búsqueda libre: `?q=termino`
 
 ### 6.3 Ordenamiento
 
 Query param `sort`. Default por endpoint. Prefijo `-` para descendente.
 
-- `?sort=fechaCreacion`
-- `?sort=-fechaCreacion`
-- `?sort=ciudad,-fechaCreacion`
+- `?sort=created_at`
+- `?sort=-created_at`
+- `?sort=city,-created_at`
 
 ### 6.4 Sparse fieldsets
 
-No para MVP. Si se implementa: `?fields=id,nombres,email`.
+No para MVP. Si se implementa: `?fields=id,first_name,email`.
 
 ---
 
@@ -324,12 +328,12 @@ Registro con email/password.
 **Request:**
 ```json
 {
-  "nombres": "Juan",
-  "apellidos": "Pérez",
+  "first_name": "Juan",
+  "last_name": "Pérez",
   "email": "juan@example.com",
-  "telefono": "+573001234567",
+  "phone": "+573001234567",
   "password": "SuperSecure123!",
-  "aceptaPolitica": true
+  "accepted_policy": true
 }
 ```
 
@@ -337,7 +341,7 @@ Registro con email/password.
 ```json
 {
   "data": {
-    "user": { "id": "...", "email": "...", "emailVerificado": false, "...": "..." },
+    "user": { "id": "...", "email": "...", "email_verified": false, "...": "..." },
     "verificationRequired": true
   },
   "meta": null,
@@ -346,8 +350,8 @@ Registro con email/password.
 ```
 
 **Notas backend:**
-- No emite tokens hasta que `emailVerificado = true`. Cliente debe completar `/auth/verify-email`.
-- Crea registro en `tokens_verificacion` (tipo `email`) y envía Resend.
+- No emite tokens hasta que `email_verified = true`. Cliente debe completar `/auth/verify-email`.
+- Crea registro en `verification_tokens` (tipo `email`) y envía Resend.
 
 **Errores:** `VALIDATION_ERROR`, `EMAIL_ALREADY_EXISTS`, `PHONE_ALREADY_EXISTS`.
 
@@ -361,9 +365,10 @@ Registro con email/password.
 ```json
 {
   "data": {
-    "user": { "id": "...", "...": "..." },
-    "accessToken": "eyJhbG...",
-    "refreshToken": "rt_01HKQ..."
+    "user": { "id": "...", "email": "...", "first_name": "...", "last_name": "...", "status": "active" },
+    "access_token": "eyJhbG...",
+    "refresh_token": "rt_01HKQ...",
+    "expires_in": 900
   },
   "meta": null,
   "error": null
@@ -386,8 +391,8 @@ Login con Google o Facebook.
 {
   "data": {
     "user": { "...": "..." },
-    "accessToken": "...",
-    "refreshToken": "...",
+    "access_token": "...",
+    "refresh_token": "...",
     "isNewUser": true
   },
   "meta": null,
@@ -404,13 +409,13 @@ Login con Google o Facebook.
 #### `POST /api/v1/auth/refresh`
 
 ```json
-{ "refreshToken": "rt_01HKQ..." }
+{ "refresh_token": "rt_01HKQ..." }
 ```
 
 **Response 200:**
 ```json
 {
-  "data": { "accessToken": "eyJhbG...", "refreshToken": "rt_01HKR..." },
+  "data": { "access_token": "eyJhbG...", "refresh_token": "rt_01HKR...", "expires_in": 900 },
   "meta": null,
   "error": null
 }
@@ -427,7 +432,7 @@ Sin body. Response 200 con `data: null`. Revoca refresh y blacklistea jti del ac
 #### `POST /api/v1/auth/verify-email`
 
 ```json
-{ "email": "juan@example.com", "codigo": "123456" }
+{ "email": "juan@example.com", "code": "123456" }
 ```
 
 **Response 200:**
@@ -435,8 +440,8 @@ Sin body. Response 200 con `data: null`. Revoca refresh y blacklistea jti del ac
 {
   "data": {
     "user": { "...": "..." },
-    "accessToken": "...",
-    "refreshToken": "..."
+    "access_token": "...",
+    "refresh_token": "..."
   }
 }
 ```
@@ -465,7 +470,7 @@ Auth: JWT (usuario aún sin verificar). Sin body. Reenvía código si no expirad
 
 Token viene del email. Invalida todas las sesiones del usuario en éxito.
 
-### 7.2 Usuarios
+### 7.2 Users
 
 #### `GET /api/v1/users/me`
 
@@ -474,19 +479,19 @@ Token viene del email. Invalida todas las sesiones del usuario en éxito.
 {
   "data": {
     "id": "...",
-    "nombres": "Juan",
-    "apellidos": "Pérez",
+    "first_name": "Juan",
+    "last_name": "Pérez",
     "email": "juan@example.com",
-    "telefono": "+573001234567",
-    "pais": "Colombia",
-    "ciudad": "Bogotá",
-    "direccion": "Cra 7 #...",
-    "fotoUrl": null,
-    "emailVerificado": true,
-    "telefonoVerificado": false,
-    "authProvider": "email",
-    "estado": "activo",
-    "fechaRegistro": "2026-04-15T14:30:00.000-05:00"
+    "phone": "+573001234567",
+    "country": "Colombia",
+    "city": "Bogotá",
+    "address": "Cra 7 #...",
+    "photo_url": null,
+    "email_verified": true,
+    "phone_verified": false,
+    "auth_provider": "email",
+    "status": "active",
+    "created_at": "2026-04-15T14:30:00.000-05:00"
   }
 }
 ```
@@ -494,35 +499,61 @@ Token viene del email. Invalida todas las sesiones del usuario en éxito.
 #### `PATCH /api/v1/users/me`
 
 ```json
-{ "nombres": "Juan Carlos", "ciudad": "Medellín" }
+{ "first_name": "Juan Carlos", "city": "Medellín" }
 ```
 
-Campos modificables: `nombres`, `apellidos`, `telefono`, `pais`, `ciudad`, `direccion`, `fotoUrl`.
+Campos modificables: `first_name`, `last_name`, `phone`, `country`, `city`, `address`, `photo_url`.
 
-Campos **no modificables** por este endpoint: `email` (requiere flujo separado con verificación), `password` (`/auth/change-password`), `estado` (admin only).
+Campos **no modificables** por este endpoint: `email` (requiere flujo separado con verificación), `password` (`/auth/change-password`), `status` (admin only).
 
 #### `DELETE /api/v1/users/me`
 
-Inicia eliminación. Período de gracia **30 días**. Cuenta queda `estado = 'inactivo'`, alquileres activos se cierran si aplica.
+Inicia eliminación. Período de gracia **30 días**. Cuenta queda `status = 'inactive'`, alquileres activos se cierran si aplica.
 
-### 7.3 Estaciones
+### 7.3 Stations
 
 #### `GET /api/v1/stations`
 
 **Query params:**
-- `ciudad` (filtro)
-- `estado` (filtro: `en_linea`, `fuera_de_linea`, `mantenimiento`)
-- `latitud`, `longitud`, `radioKm` (búsqueda geográfica)
-- `disponibles=true` (solo con power banks disponibles)
+- `city` (filtro)
+- `status` (filtro: `online`, `offline`, `maintenance`)
+- `latitude`, `longitude`, `radius_km` (búsqueda geográfica)
+- `available=true` (solo con power banks disponibles)
 - Paginación estándar.
 
 **Response 200:** array de estaciones con `meta.pagination`.
 
+```json
+{
+  "data": [
+    {
+      "id": "...",
+      "name": "Station Centro",
+      "city": "Bogotá",
+      "zone": "Centro",
+      "address": "Cra 7 #...",
+      "latitude": "4.7110000",
+      "longitude": "-74.0721000",
+      "hourly_rate": "5000.00",
+      "currency": "COP",
+      "total_capacity": 10,
+      "status": "online",
+      "description": null,
+      "opening_time": null,
+      "closing_time": null,
+      "created_at": "2026-04-15T14:30:00.000-05:00"
+    }
+  ],
+  "meta": { "pagination": { "page": 1, "pageSize": 20, "total": 5, "totalPages": 1, "hasNext": false, "hasPrevious": false } },
+  "error": null
+}
+```
+
 #### `GET /api/v1/stations/{id}`
 
-Detalle. Incluye `powerBanksDisponibles` (count en tiempo real).
+Detalle. Incluye `available_power_banks` (count en tiempo real).
 
-### 7.4 Alquileres
+### 7.4 Rentals
 
 #### `POST /api/v1/rentals`
 
@@ -531,11 +562,11 @@ Detalle. Incluye `powerBanksDisponibles` (count en tiempo real).
 **Request:**
 ```json
 {
-  "estacionId": "uuid...",
-  "powerBankId": "uuid...",
-  "duracionHorasEstimada": 3,
-  "metodoPagoId": "uuid...",
-  "cuponId": "uuid... | null"
+  "pickup_station_id": "uuid...",
+  "power_bank_id": "uuid...",
+  "estimated_duration_hours": 3,
+  "payment_method_id": "uuid...",
+  "coupon_id": "uuid... | null"
 }
 ```
 
@@ -545,21 +576,21 @@ Detalle. Incluye `powerBanksDisponibles` (count en tiempo real).
   "data": {
     "rental": {
       "id": "...",
-      "powerBankId": "...",
-      "estacionRetiroId": "...",
-      "horaInicio": "...",
-      "duracionHorasEstimada": 3,
-      "tarifaHora": "5000.00",
-      "costoEstimado": "15000.00",
-      "moneda": "COP",
-      "estado": "activo",
-      "qrDevolucion": "moltech://rental/return?code=..."
+      "power_bank_id": "...",
+      "pickup_station_id": "...",
+      "start_time": "...",
+      "estimated_duration_hours": 3,
+      "hourly_rate": "5000.00",
+      "estimated_cost": "15000.00",
+      "currency": "COP",
+      "status": "active",
+      "qr_return": "moltech://rental/return?code=..."
     },
     "payment": {
       "id": "...",
-      "monto": "15000.00",
-      "estado": "pendiente",
-      "transaccionId": "..."
+      "amount": "15000.00",
+      "status": "pending",
+      "transaction_id": "..."
     }
   }
 }
@@ -568,18 +599,18 @@ Detalle. Incluye `powerBanksDisponibles` (count en tiempo real).
 **Flujo backend:**
 1. Validar `STATION_OFFLINE`, `POWER_BANK_UNAVAILABLE`, `RENTAL_ALREADY_ACTIVE`, `PAYMENT_METHOD_INVALID`, `COUPON_INVALID`.
 2. Lock optimista del power bank (`SELECT ... FOR UPDATE` en una tx).
-3. Crear `alquiler` con `estado = 'activo'`.
-4. Crear `pago` con `estado = 'pendiente'`.
-5. Llamar a pasarela con `chargeWithToken(metodoPago.tokenPasarela, monto, idempotencyKey)`.
-6. Si responde aprobado sync → actualizar `pago.estado = 'aprobado'`.
-7. Si async (webhook) → quedará `pendiente` y se actualiza al recibir webhook.
+3. Crear `rental` con `status = 'active'`.
+4. Crear `payment` con `status = 'pending'`.
+5. Llamar a pasarela con `chargeWithToken(payment_method.gateway_token, amount, idempotencyKey)`.
+6. Si responde aprobado sync → actualizar `payment.status = 'approved'`.
+7. Si async (webhook) → quedará `pending` y se actualiza al recibir webhook.
 8. Emitir `rental.started` y `payment.initiated`.
 
 **Errores:** `STATION_OFFLINE`, `POWER_BANK_UNAVAILABLE`, `RENTAL_ALREADY_ACTIVE`, `PAYMENT_METHOD_INVALID`, `PAYMENT_DECLINED`, `COUPON_INVALID`, `IDEMPOTENCY_KEY_REQUIRED`.
 
 #### `GET /api/v1/rentals/me`
 
-Lista. Filtros: `estado`, `fechaDesde`, `fechaHasta`. Paginación.
+Lista. Filtros: `status`, `date_from`, `date_to`. Paginación.
 
 #### `GET /api/v1/rentals/me/active`
 
@@ -601,30 +632,30 @@ Detalle. Verifica ownership.
   "data": {
     "rental": {
       "id": "...",
-      "horaInicio": "...",
-      "horaFin": "...",
-      "duracionHorasReal": "3.25",
-      "costoFinal": "16250.00",
-      "penalizacion": "1250.00",
-      "estado": "finalizado"
+      "start_time": "...",
+      "end_time": "...",
+      "actual_duration_hours": "3.25",
+      "final_cost": "16250.00",
+      "penalty": "1250.00",
+      "status": "completed"
     },
-    "payment": { "id": "...", "monto": "1250.00", "estado": "pendiente" }
+    "payment": { "id": "...", "amount": "1250.00", "status": "pending" }
   }
 }
 ```
 
 **Flujo backend:**
 1. Validar `RENTAL_NOT_ACTIVE` si aplica.
-2. Calcular `duracion_horas_real`, `costo_final`, `penalizacion` con `PricingService`.
-3. Liberar power bank (`estado = 'disponible'`, `estacion_id` actualizado si devolvió en otra estación — aunque MVP dice misma estación).
-4. Si `costo_final > costo_estimado` → crear pago adicional, cobrar diferencia.
+2. Calcular `actual_duration_hours`, `final_cost`, `penalty` con `PricingService`.
+3. Liberar power bank (`status = 'available'`, `station_id` actualizado si devolvió en otra estación — aunque MVP dice misma estación).
+4. Si `final_cost > estimated_cost` → crear pago adicional, cobrar diferencia.
 5. Emitir `rental.finished`.
 
-### 7.5 Métodos de pago
+### 7.5 Payment methods
 
 #### `GET /api/v1/payment-methods`
 
-Lista métodos del usuario. Filtrar por `estado != 'eliminada'` por default.
+Lista métodos del usuario. Filtrar por `status != 'deleted'` por default.
 
 #### `POST /api/v1/payment-methods`
 
@@ -633,33 +664,33 @@ Lista métodos del usuario. Filtrar por `estado != 'eliminada'` por default.
 **Request:**
 ```json
 {
-  "tipo": "visa",
-  "nombreTitular": "JUAN PEREZ",
-  "ultimos4Digitos": "4242",
-  "mesVencimiento": 12,
-  "anioVencimiento": 28,
-  "tokenPasarela": "tok_xyz_emitido_por_pasarela",
-  "esPredeterminada": true
+  "type": "visa",
+  "cardholder_name": "JUAN PEREZ",
+  "last_four_digits": "4242",
+  "expiry_month": 12,
+  "expiry_year": 28,
+  "gateway_token": "tok_xyz_emitido_por_pasarela",
+  "is_default": true
 }
 ```
 
 **REGLA INVIOLABLE:** El backend **rechaza con 400** cualquier request que contenga campos `cardNumber`, `pan`, `cvv`, `cvc`, `pin`. La tokenización ocurre 100% en el cliente vía SDK de la pasarela; el backend nunca ve el PAN.
 
-**Response 201:** el método creado (sin `tokenPasarela` en la respuesta — sólo necesario en el flujo de cobro).
+**Response 201:** el método creado (sin `gateway_token` en la respuesta — sólo necesario en el flujo de cobro).
 
 #### `DELETE /api/v1/payment-methods/{id}`
 
-Soft delete: marca `estado = 'eliminada'`. Si era predeterminada, no autoasigna otra; cliente debe hacerlo.
+Soft delete: marca `status = 'deleted'`. Si era predeterminada, no autoasigna otra; cliente debe hacerlo.
 
 #### `PATCH /api/v1/payment-methods/{id}/set-default`
 
 Marca como predeterminada (y quita marca de las demás).
 
-### 7.6 Pagos
+### 7.6 Payments
 
 #### `GET /api/v1/payments`
 
-Historial del usuario. Filtros por `estado`, `concepto`, fechas.
+Historial del usuario. Filtros por `status`, `concept`, fechas.
 
 #### `GET /api/v1/payments/{id}`
 
@@ -667,7 +698,7 @@ Detalle. Verifica ownership.
 
 #### `POST /api/v1/payments/{id}/retry`
 
-**Headers:** `Idempotency-Key` obligatorio. Reintenta pago en estado `error` o `rechazado`.
+**Headers:** `Idempotency-Key` obligatorio. Reintenta pago en estado `error` o `rejected`.
 
 #### `POST /api/v1/payments/{id}/refund`
 
@@ -675,28 +706,28 @@ Detalle. Verifica ownership.
 
 **Request:**
 ```json
-{ "monto": "5000.00", "motivo": "Problema con power bank" }
+{ "amount": "5000.00", "reason": "Problema con power bank" }
 ```
 
-### 7.7 Cupones
+### 7.7 Coupons
 
 #### `POST /api/v1/coupons/validate`
 
 ```json
-{ "codigo": "DESCUENTO20" }
+{ "code": "DESCUENTO20" }
 ```
 
 **Response 200:**
 ```json
 {
   "data": {
-    "valido": true,
-    "cupon": {
+    "valid": true,
+    "coupon": {
       "id": "...",
-      "codigo": "DESCUENTO20",
-      "tipoDescuento": "porcentaje",
-      "valorDescuento": "20.00",
-      "fechaFin": "..."
+      "code": "DESCUENTO20",
+      "discount_type": "percentage",
+      "discount_value": "20.00",
+      "end_date": "..."
     }
   }
 }
@@ -704,11 +735,11 @@ Detalle. Verifica ownership.
 
 **Errores:** `COUPON_INVALID`, `COUPON_EXPIRED`, `COUPON_EXHAUSTED`.
 
-### 7.8 Notificaciones
+### 7.8 Notifications
 
 #### `GET /api/v1/notifications`
 
-Lista. Filtros: `leida`, `tipo`. Paginación.
+Lista. Filtros: `is_read`, `type`. Paginación.
 
 #### `PATCH /api/v1/notifications/{id}/read`
 
@@ -781,9 +812,9 @@ JWKS público para verificación remota del access token (opcional para clientes
 
 ### 8.2 Eventos esperados
 
-- `payment.approved` → backend marca `pagos.estado = 'aprobado'`, emite evento de dominio.
-- `payment.declined` → idem `rechazado`.
-- `payment.refunded` → idem `reembolsado`.
+- `payment.approved` → backend marca `payments.status = 'approved'`, emite evento de dominio.
+- `payment.declined` → idem `rejected`.
+- `payment.refunded` → idem `refunded`.
 - `payment.error` → idem `error`.
 
 ### 8.3 Flujo
@@ -791,8 +822,8 @@ JWKS público para verificación remota del access token (opcional para clientes
 1. Backend lee raw body.
 2. Verifica firma HMAC con `PAYMENTSWAY_WEBHOOK_SECRET`.
 3. Si firma inválida → `401` + alert.
-4. Lookup por `transaccion_id` (idempotencia: si ya procesado, retorna `200` sin re-emitir evento).
-5. Actualiza `pagos`.
+4. Lookup por `transaction_id` (idempotencia: si ya procesado, retorna `200` sin re-emitir evento).
+5. Actualiza `payments`.
 6. Emite evento de dominio (`payment.approved`, etc.).
 7. Listener de `notifications` crea notif in-app + dispara push.
 8. Retorna `200 { data: { received: true } }`.
@@ -985,7 +1016,7 @@ Reglas que afectan al contrato:
 
 - **Toda request HTTPS.** HTTP plano rechazado por proxy.
 - **Tokens en header `Authorization: Bearer`**, jamás URL/query.
-- **PCI**: datos de tarjeta NUNCA atraviesan este API. Solo `tokenPasarela`.
+- **PCI**: datos de tarjeta NUNCA atraviesan este API. Solo `gateway_token`.
 - **Logs scrubbed** server-side y cliente.
 - **Rate limiting** activo en prod (ver `§9`).
 - **Idempotency** mandatoria en operaciones económicas (ver `§5.4`).
@@ -1000,7 +1031,7 @@ Cuando agregues o modifiques endpoints:
 
 1. **Lee este documento antes de proponer cambios.** Si un cambio rompe el contrato, primero se actualiza el documento.
 2. **Respeta el envelope.** Toda respuesta tiene `data`, `meta`, `error`.
-3. **camelCase en JSON.** Sin excepciones.
+3. **snake_case en JSON.** Sin excepciones.
 4. **Valida inputs y outputs con Zod.** Cualquier respuesta que no pase Zod en tests = bug.
 5. **Errores tienen `code`.** Nunca solo `message`. El `code` es estable; el `message` se localiza.
 6. **Idempotencia obligatoria** en POST que cobren o creen recursos económicos.
@@ -1038,8 +1069,8 @@ Cuando agregues o modifiques endpoints:
 
 ---
 
-**Versión:** 1.0
-**Última actualización:** Por ajustar al primer commit.
+**Versión:** 1.1
+**Última actualización:** 2026-05-17 — migración M.5 campos a inglés snake_case.
 **Owner:** Equipo MOLTECH — Backend + Frontend.
 **Revisión obligatoria cada:** cambio mayor del API o trimestralmente.
 **Mirror:** `moltech_app/docs/API_CONTRACT.md` — sincronizar en el mismo PR.
