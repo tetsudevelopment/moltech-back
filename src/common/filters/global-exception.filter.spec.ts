@@ -55,14 +55,14 @@ describe('GlobalExceptionFilter', () => {
 
       filter.catch(
         new ConflictException({
-          code: 'EMAIL_ALREADY_REGISTERED',
+          code: 'EMAIL_ALREADY_EXISTS',
           message: 'Email already registered',
         }),
         host,
       );
 
       expect(status).toHaveBeenCalledWith(HttpStatus.CONFLICT);
-      expect(envelopeFrom(json).error.code).toBe('EMAIL_ALREADY_REGISTERED');
+      expect(envelopeFrom(json).error.code).toBe('EMAIL_ALREADY_EXISTS');
       expect(envelopeFrom(json).error.message).toBe('Email already registered');
     });
 

@@ -63,7 +63,10 @@ export class UserRepository {
       return this.mapToDomain(row);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new EmailAlreadyExistsError(input.email);
+        throw uniqueViolationToError(err, {
+          email: input.email,
+          ...(input.phone !== null ? { phone: input.phone } : {}),
+        });
       }
       throw err;
     }
@@ -86,7 +89,7 @@ export class UserRepository {
       return this.mapToDomain(row);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new EmailAlreadyExistsError(input.email);
+        throw uniqueViolationToError(err, { email: input.email });
       }
       throw err;
     }
@@ -148,4 +151,34 @@ export class EmailAlreadyExistsError extends Error {
     this.name = 'EmailAlreadyExistsError';
     this.email = email;
   }
+}
+
+export class PhoneAlreadyExistsError extends Error {
+  readonly phone: string;
+
+  constructor(phone: string) {
+    super('Phone already registered');
+    this.name = 'PhoneAlreadyExistsError';
+    this.phone = phone;
+  }
+}
+
+function uniqueViolationToError(
+  err: Prisma.PrismaClientKnownRequestError,
+  values: { email: string; phone?: string },
+): EmailAlreadyExistsError | PhoneAlreadyExistsError {
+  const fields = extractTargetFields(err.meta?.target);
+  if (fields.includes('phone') && values.phone) {
+    return new PhoneAlreadyExistsError(values.phone);
+  }
+  if (fields.includes('email')) {
+    return new EmailAlreadyExistsError(values.email);
+  }
+  return new EmailAlreadyExistsError(values.email);
+}
+
+function extractTargetFields(target: unknown): string[] {
+  if (Array.isArray(target)) return target.map(String);
+  if (typeof target === 'string') return [target];
+  return [];
 }

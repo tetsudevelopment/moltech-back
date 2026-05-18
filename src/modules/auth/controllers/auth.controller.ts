@@ -28,7 +28,11 @@ import { JwtService } from '../services/jwt.service';
 import { LoginService } from '../services/login.service';
 import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
-import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
+import {
+  EmailAlreadyExistsError,
+  PhoneAlreadyExistsError,
+  RegisterService,
+} from '../services/register.service';
 import { ResendVerificationService } from '../services/resend-verification.service';
 import { ResetPasswordService } from '../services/reset-password.service';
 import { SocialLoginService } from '../services/social-login.service';
@@ -90,8 +94,14 @@ export class AuthController {
     } catch (err) {
       if (err instanceof EmailAlreadyExistsError) {
         throw new ConflictException({
-          code: 'EMAIL_ALREADY_REGISTERED',
+          code: 'EMAIL_ALREADY_EXISTS',
           message: 'Este email ya está registrado',
+        });
+      }
+      if (err instanceof PhoneAlreadyExistsError) {
+        throw new ConflictException({
+          code: 'PHONE_ALREADY_EXISTS',
+          message: 'Este teléfono ya está registrado',
         });
       }
       throw err;

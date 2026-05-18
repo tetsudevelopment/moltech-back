@@ -3,7 +3,11 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 
-import { EmailAlreadyExistsError, UserRepository } from './user.repository';
+import {
+  EmailAlreadyExistsError,
+  PhoneAlreadyExistsError,
+  UserRepository,
+} from './user.repository';
 
 const makePrismaRow = (overrides: Partial<ReturnType<typeof basePrismaRow>> = {}) => ({
   ...basePrismaRow(),
@@ -196,7 +200,31 @@ describe('UserRepository', () => {
       expect(result.status).toBe('pending_verification');
     });
 
-    it('throws EmailAlreadyExistsError on P2002 unique constraint violation', async () => {
+    it('throws EmailAlreadyExistsError on P2002 when the conflict is on the email column', async () => {
+      const prismaError = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '6.0.0',
+        meta: { target: ['email'] },
+      });
+      mockCreate.mockRejectedValue(prismaError);
+
+      await expect(repo.createWithEmail(input)).rejects.toThrow(EmailAlreadyExistsError);
+    });
+
+    it('throws PhoneAlreadyExistsError on P2002 when the conflict is on the phone column', async () => {
+      const prismaError = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '6.0.0',
+        meta: { target: ['phone'] },
+      });
+      mockCreate.mockRejectedValue(prismaError);
+
+      await expect(repo.createWithEmail({ ...input, phone: '+573001234567' })).rejects.toThrow(
+        PhoneAlreadyExistsError,
+      );
+    });
+
+    it('falls back to EmailAlreadyExistsError on P2002 when meta.target is missing', async () => {
       const prismaError = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
         code: 'P2002',
         clientVersion: '6.0.0',
@@ -320,6 +348,7 @@ describe('UserRepository', () => {
       const prismaError = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
         code: 'P2002',
         clientVersion: '6.0.0',
+        meta: { target: ['email'] },
       });
       mockCreate.mockRejectedValue(prismaError);
 

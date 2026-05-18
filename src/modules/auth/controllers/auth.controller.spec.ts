@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ZodError } from 'zod';
 
@@ -19,7 +19,11 @@ import { JwtService } from '../services/jwt.service';
 import { LoginService } from '../services/login.service';
 import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
-import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
+import {
+  EmailAlreadyExistsError,
+  PhoneAlreadyExistsError,
+  RegisterService,
+} from '../services/register.service';
 import { ResendVerificationService } from '../services/resend-verification.service';
 import { ResetPasswordService } from '../services/reset-password.service';
 import { SocialLoginService } from '../services/social-login.service';
@@ -178,11 +182,22 @@ describe('AuthController', () => {
       });
     });
 
-    it('throws ConflictException when EmailAlreadyExistsError is raised', async () => {
+    it('throws ConflictException with EMAIL_ALREADY_EXISTS when EmailAlreadyExistsError is raised', async () => {
       mockRegister.mockRejectedValue(new EmailAlreadyExistsError('user@example.com'));
       const dto = RegisterSchema.parse(validBody);
 
-      await expect(controller.register(dto, fakeRequest)).rejects.toThrow(ConflictException);
+      await expect(controller.register(dto, fakeRequest)).rejects.toMatchObject({
+        response: { code: 'EMAIL_ALREADY_EXISTS' },
+      });
+    });
+
+    it('throws ConflictException with PHONE_ALREADY_EXISTS when PhoneAlreadyExistsError is raised', async () => {
+      mockRegister.mockRejectedValue(new PhoneAlreadyExistsError('+573001234567'));
+      const dto = RegisterSchema.parse(validBody);
+
+      await expect(controller.register(dto, fakeRequest)).rejects.toMatchObject({
+        response: { code: 'PHONE_ALREADY_EXISTS' },
+      });
     });
 
     it('DTO validation fails → ZodValidationPipe throws ZodError', () => {

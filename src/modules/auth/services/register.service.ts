@@ -16,11 +16,12 @@ import { type RegisterDto } from '../dtos/register.dto';
 import {
   type CreateEmailUserInput,
   EmailAlreadyExistsError,
+  PhoneAlreadyExistsError,
   UserRepository,
 } from '../repositories/user.repository';
 import { VerificationTokenRepository } from '../repositories/verification-token.repository';
 
-export { EmailAlreadyExistsError };
+export { EmailAlreadyExistsError, PhoneAlreadyExistsError };
 
 export interface RegisterContext {
   requestId?: string | undefined;
