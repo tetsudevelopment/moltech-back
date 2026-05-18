@@ -51,6 +51,15 @@ export class JwtService implements OnModuleInit {
     );
   }
 
+  /**
+   * Returns the access-token TTL in seconds, parsed from JWT_ACCESS_TTL.
+   * Use this instead of hardcoding `expires_in` in controller responses so
+   * a single env var stays the source of truth.
+   */
+  getAccessTokenTtlSeconds(): number {
+    return parseTtlSeconds(this.config.get('JWT_ACCESS_TTL'));
+  }
+
   signRefreshToken(claims: RefreshTokenClaims): Promise<string> {
     return this.sign(
       claims as unknown as Record<string, unknown>,
@@ -99,4 +108,18 @@ export class JwtService implements OnModuleInit {
     }
     return this.publicKey;
   }
+}
+
+export function parseTtlSeconds(ttl: string): number {
+  const match = /^(\d+)([smhd])$/.exec(ttl);
+  if (!match?.[1] || !match[2]) {
+    throw new Error(`Invalid TTL format: ${ttl}`);
+  }
+  const value = Number.parseInt(match[1], 10);
+  const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+  const mult = multipliers[match[2]];
+  if (mult === undefined) {
+    throw new Error(`Invalid TTL unit: ${match[2]}`);
+  }
+  return value * mult;
 }

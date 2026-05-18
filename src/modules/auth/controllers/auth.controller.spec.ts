@@ -15,6 +15,7 @@ import { VerifyEmailSchema } from '@/modules/auth/dtos/verify-email.dto';
 
 import { AuthController } from './auth.controller';
 import { ForgotPasswordService } from '../services/forgot-password.service';
+import { JwtService } from '../services/jwt.service';
 import { LoginService } from '../services/login.service';
 import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
@@ -33,6 +34,7 @@ const mockResendVerification = jest.fn();
 const mockForgotPassword = jest.fn();
 const mockResetPassword = jest.fn();
 const mockSocialLogin = jest.fn();
+const mockGetAccessTokenTtl = jest.fn();
 
 const validBody = {
   email: 'user@example.com',
@@ -100,6 +102,7 @@ describe('AuthController', () => {
     mockResendVerification.mockResolvedValue(undefined);
     mockForgotPassword.mockResolvedValue(undefined);
     mockResetPassword.mockResolvedValue(undefined);
+    mockGetAccessTokenTtl.mockReturnValue(900);
     mockSocialLogin.mockResolvedValue({
       accessToken: 'social-access',
       refreshToken: 'social-refresh',
@@ -134,6 +137,10 @@ describe('AuthController', () => {
         {
           provide: SocialLoginService,
           useValue: { login: mockSocialLogin },
+        },
+        {
+          provide: JwtService,
+          useValue: { getAccessTokenTtlSeconds: mockGetAccessTokenTtl },
         },
       ],
     }).compile();

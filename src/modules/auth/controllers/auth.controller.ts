@@ -24,6 +24,7 @@ import { type ResetPasswordDto, ResetPasswordSchema } from '../dtos/reset-passwo
 import { type SocialLoginDto, SocialLoginSchema } from '../dtos/social-login.dto';
 import { type VerifyEmailDto, VerifyEmailSchema } from '../dtos/verify-email.dto';
 import { ForgotPasswordService } from '../services/forgot-password.service';
+import { JwtService } from '../services/jwt.service';
 import { LoginService } from '../services/login.service';
 import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
@@ -45,6 +46,7 @@ export class AuthController {
     private readonly forgotPasswordService: ForgotPasswordService,
     private readonly resetPasswordService: ResetPasswordService,
     private readonly socialLoginService: SocialLoginService,
+    private readonly jwtService: JwtService,
   ) {}
 
   @Post('register')
@@ -120,7 +122,7 @@ export class AuthController {
     return {
       access_token: result.accessToken,
       refresh_token: result.refreshToken,
-      expires_in: 900,
+      expires_in: this.jwtService.getAccessTokenTtlSeconds(),
       user: {
         id: result.user.id,
         email: result.user.email,
@@ -144,7 +146,7 @@ export class AuthController {
     return {
       access_token: result.accessToken,
       refresh_token: result.refreshToken,
-      expires_in: 900, // F3 follow-up: derive from JWT_ACCESS_TTL
+      expires_in: this.jwtService.getAccessTokenTtlSeconds(),
     };
   }
 
@@ -173,7 +175,7 @@ export class AuthController {
     return {
       access_token: result.accessToken,
       refresh_token: result.refreshToken,
-      expires_in: 900,
+      expires_in: this.jwtService.getAccessTokenTtlSeconds(),
       user: {
         id: result.user.id,
         email: result.user.email,
@@ -247,7 +249,7 @@ export class AuthController {
     return {
       access_token: result.accessToken,
       refresh_token: result.refreshToken,
-      expires_in: 900,
+      expires_in: this.jwtService.getAccessTokenTtlSeconds(),
       is_new_user: result.isNewUser,
       user: {
         id: result.user.id,

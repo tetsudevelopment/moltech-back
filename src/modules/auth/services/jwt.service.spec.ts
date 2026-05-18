@@ -5,7 +5,7 @@ import { decodeJwt, decodeProtectedHeader } from 'jose';
 
 import { AppConfigService } from '@/config/config.service';
 
-import { JwtService } from './jwt.service';
+import { JwtService, parseTtlSeconds } from './jwt.service';
 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', {
   modulusLength: 2048,
@@ -126,6 +126,12 @@ describe('JwtService', () => {
     });
   });
 
+  describe('getAccessTokenTtlSeconds()', () => {
+    it('returns the JWT_ACCESS_TTL parsed into seconds', () => {
+      expect(service.getAccessTokenTtlSeconds()).toBe(15 * 60);
+    });
+  });
+
   describe('verifyRefreshToken()', () => {
     it('returns claims including sub, familyId and tokenId', async () => {
       const token = await service.signRefreshToken({
@@ -144,5 +150,28 @@ describe('JwtService', () => {
       const claims = await service.verifyRefreshToken(accessToken);
       expect(claims.familyId).toBeUndefined();
     });
+  });
+});
+
+describe('parseTtlSeconds()', () => {
+  it('parses seconds', () => {
+    expect(parseTtlSeconds('30s')).toBe(30);
+  });
+
+  it('parses minutes', () => {
+    expect(parseTtlSeconds('15m')).toBe(15 * 60);
+  });
+
+  it('parses hours', () => {
+    expect(parseTtlSeconds('2h')).toBe(2 * 3600);
+  });
+
+  it('parses days', () => {
+    expect(parseTtlSeconds('30d')).toBe(30 * 86400);
+  });
+
+  it('throws on invalid format', () => {
+    expect(() => parseTtlSeconds('15min')).toThrow('Invalid TTL format');
+    expect(() => parseTtlSeconds('weird')).toThrow('Invalid TTL format');
   });
 });
