@@ -46,6 +46,8 @@ export default tseslint.config(
         { type: 'repositories', pattern: 'src/modules/*/repositories/**' },
         { type: 'services', pattern: 'src/modules/*/services/**' },
         { type: 'controllers', pattern: 'src/modules/*/controllers/**' },
+        { type: 'guards', pattern: 'src/modules/*/guards/**' },
+        { type: 'decorators', pattern: 'src/modules/*/decorators/**' },
         { type: 'module-root', pattern: 'src/modules/*/*.module.ts' },
       ],
       'boundaries/ignore': ['**/*.spec.ts', '**/*.e2e-spec.ts'],
@@ -82,15 +84,27 @@ export default tseslint.config(
                 'services',
                 'repositories',
                 'listeners',
+                'guards',
+                'decorators',
                 'common',
                 'config',
                 'infrastructure',
               ],
             },
-            // controllers: service + dtos + common + config
+            // controllers: service + dtos + common + config + guards + decorators
             {
               from: 'controllers',
-              allow: ['services', 'dtos', 'common', 'config'],
+              allow: ['services', 'dtos', 'common', 'config', 'guards', 'decorators'],
+            },
+            // guards: services + common + config (validate tokens, read config)
+            {
+              from: 'guards',
+              allow: ['services', 'common', 'config'],
+            },
+            // decorators: guards (for types) + common
+            {
+              from: 'decorators',
+              allow: ['guards', 'common'],
             },
             // services: repos + domain + common + events + config + infrastructure
             // same-module service composition is allowed per BACKEND_ARCHITECTURE.md §3.3
