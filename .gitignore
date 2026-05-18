@@ -135,3 +135,13 @@ audit-report.json
 *.tmp
 *.temp
 .cache/
+
+# =============================================================================
+# AGENTES (Claude Code / Agent Teams Lite)
+# =============================================================================
+
+# Scratch del Agent Teams Lite: skill registry cache local, no es parte del repo
+.atl/
+
+# Memorias / scratch del CLI de Claude que viven dentro del proyecto si aparecen
+.claude/
