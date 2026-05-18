@@ -12,6 +12,7 @@ import { PasswordService } from './services/password.service';
 import { RefreshService } from './services/refresh.service';
 import { RegisterService } from './services/register.service';
 import { ResendVerificationService } from './services/resend-verification.service';
+import { ResetPasswordService } from './services/reset-password.service';
 import { VerifyEmailService } from './services/verify-email.service';
 
 @Module({
@@ -29,6 +30,7 @@ import { VerifyEmailService } from './services/verify-email.service';
     VerifyEmailService,
     ResendVerificationService,
     ForgotPasswordService,
+    ResetPasswordService,
   ],
   exports: [
     PasswordService,

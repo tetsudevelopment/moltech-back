@@ -20,6 +20,7 @@ import {
   type ResendVerificationDto,
   ResendVerificationSchema,
 } from '../dtos/resend-verification.dto';
+import { type ResetPasswordDto, ResetPasswordSchema } from '../dtos/reset-password.dto';
 import { type VerifyEmailDto, VerifyEmailSchema } from '../dtos/verify-email.dto';
 import { ForgotPasswordService } from '../services/forgot-password.service';
 import { LoginService } from '../services/login.service';
@@ -27,6 +28,7 @@ import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
 import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
 import { ResendVerificationService } from '../services/resend-verification.service';
+import { ResetPasswordService } from '../services/reset-password.service';
 import { VerifyEmailService } from '../services/verify-email.service';
 
 @Controller('auth')
@@ -39,6 +41,7 @@ export class AuthController {
     private readonly verifyEmailService: VerifyEmailService,
     private readonly resendVerificationService: ResendVerificationService,
     private readonly forgotPasswordService: ForgotPasswordService,
+    private readonly resetPasswordService: ResetPasswordService,
   ) {}
 
   @Post('register')
@@ -195,6 +198,19 @@ export class AuthController {
     @Req() req: Request & { id?: string },
   ): Promise<null> {
     await this.forgotPasswordService.request(dto, {
+      requestId: req.id,
+      ip: req.ip,
+    });
+    return null;
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Body(new ZodValidationPipe(ResetPasswordSchema)) dto: ResetPasswordDto,
+    @Req() req: Request & { id?: string },
+  ): Promise<null> {
+    await this.resetPasswordService.reset(dto, {
       requestId: req.id,
       ip: req.ip,
     });

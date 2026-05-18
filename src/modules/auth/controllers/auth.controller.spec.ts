@@ -9,6 +9,7 @@ import { LogoutSchema } from '@/modules/auth/dtos/logout.dto';
 import { RefreshSchema } from '@/modules/auth/dtos/refresh.dto';
 import { RegisterSchema } from '@/modules/auth/dtos/register.dto';
 import { ResendVerificationSchema } from '@/modules/auth/dtos/resend-verification.dto';
+import { ResetPasswordSchema } from '@/modules/auth/dtos/reset-password.dto';
 import { VerifyEmailSchema } from '@/modules/auth/dtos/verify-email.dto';
 
 import { AuthController } from './auth.controller';
@@ -18,6 +19,7 @@ import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
 import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
 import { ResendVerificationService } from '../services/resend-verification.service';
+import { ResetPasswordService } from '../services/reset-password.service';
 import { VerifyEmailService } from '../services/verify-email.service';
 
 const mockRegister = jest.fn();
@@ -27,6 +29,7 @@ const mockLogout = jest.fn();
 const mockVerifyEmail = jest.fn();
 const mockResendVerification = jest.fn();
 const mockForgotPassword = jest.fn();
+const mockResetPassword = jest.fn();
 
 const validBody = {
   email: 'user@example.com',
@@ -93,6 +96,7 @@ describe('AuthController', () => {
     });
     mockResendVerification.mockResolvedValue(undefined);
     mockForgotPassword.mockResolvedValue(undefined);
+    mockResetPassword.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -109,6 +113,10 @@ describe('AuthController', () => {
         {
           provide: ForgotPasswordService,
           useValue: { request: mockForgotPassword },
+        },
+        {
+          provide: ResetPasswordService,
+          useValue: { reset: mockResetPassword },
         },
       ],
     }).compile();
@@ -358,6 +366,53 @@ describe('AuthController', () => {
       const pipe = new ZodValidationPipe(ForgotPasswordSchema);
 
       expect(() => pipe.transform({ email: 'not-email' })).toThrow(ZodError);
+    });
+  });
+
+  describe('POST /auth/reset-password', () => {
+    const validResetBody = {
+      email: 'user@example.com',
+      token: '987654',
+      new_password: 'NewSecure1',
+    };
+
+    it('calls ResetPasswordService.reset with parsed DTO and context', async () => {
+      const dto = ResetPasswordSchema.parse(validResetBody);
+
+      await controller.resetPassword(dto, fakeRequest);
+
+      expect(mockResetPassword).toHaveBeenCalledWith(dto, {
+        requestId: 'req-abc',
+        ip: '127.0.0.1',
+      });
+    });
+
+    it('returns null so the envelope is { data: null, ... }', async () => {
+      const dto = ResetPasswordSchema.parse(validResetBody);
+
+      const result = await controller.resetPassword(dto, fakeRequest);
+
+      expect(result).toBeNull();
+    });
+
+    it('reset DTO rejects non-6-digit tokens', () => {
+      const pipe = new ZodValidationPipe(ResetPasswordSchema);
+
+      expect(() =>
+        pipe.transform({ email: 'user@example.com', token: 'abc', new_password: 'NewSecure1' }),
+      ).toThrow(ZodError);
+    });
+
+    it('reset DTO rejects weak passwords (no uppercase / number)', () => {
+      const pipe = new ZodValidationPipe(ResetPasswordSchema);
+
+      expect(() =>
+        pipe.transform({
+          email: 'user@example.com',
+          token: '987654',
+          new_password: 'allowercase',
+        }),
+      ).toThrow(ZodError);
     });
   });
 
