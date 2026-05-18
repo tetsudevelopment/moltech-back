@@ -7,6 +7,7 @@ import { LoginSchema } from '@/modules/auth/dtos/login.dto';
 import { LogoutSchema } from '@/modules/auth/dtos/logout.dto';
 import { RefreshSchema } from '@/modules/auth/dtos/refresh.dto';
 import { RegisterSchema } from '@/modules/auth/dtos/register.dto';
+import { ResendVerificationSchema } from '@/modules/auth/dtos/resend-verification.dto';
 import { VerifyEmailSchema } from '@/modules/auth/dtos/verify-email.dto';
 
 import { AuthController } from './auth.controller';
@@ -14,6 +15,7 @@ import { LoginService } from '../services/login.service';
 import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
 import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
+import { ResendVerificationService } from '../services/resend-verification.service';
 import { VerifyEmailService } from '../services/verify-email.service';
 
 const mockRegister = jest.fn();
@@ -21,6 +23,7 @@ const mockLogin = jest.fn();
 const mockRefresh = jest.fn();
 const mockLogout = jest.fn();
 const mockVerifyEmail = jest.fn();
+const mockResendVerification = jest.fn();
 
 const validBody = {
   email: 'user@example.com',
@@ -85,6 +88,7 @@ describe('AuthController', () => {
       refreshToken: 'verify-refresh-token',
       user: { ...fakePublicUser, emailVerified: true, status: 'active' as const },
     });
+    mockResendVerification.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -94,6 +98,10 @@ describe('AuthController', () => {
         { provide: RefreshService, useValue: { refresh: mockRefresh } },
         { provide: LogoutService, useValue: { logout: mockLogout } },
         { provide: VerifyEmailService, useValue: { verify: mockVerifyEmail } },
+        {
+          provide: ResendVerificationService,
+          useValue: { resend: mockResendVerification },
+        },
       ],
     }).compile();
 
@@ -291,6 +299,30 @@ describe('AuthController', () => {
       const pipe = new ZodValidationPipe(VerifyEmailSchema);
 
       expect(() => pipe.transform({ email: 'not-email', code: '123456' })).toThrow(ZodError);
+    });
+  });
+
+  describe('POST /auth/resend-verification', () => {
+    it('calls ResendVerificationService.resend with parsed DTO', async () => {
+      const dto = ResendVerificationSchema.parse({ email: 'user@example.com' });
+
+      await controller.resendVerification(dto);
+
+      expect(mockResendVerification).toHaveBeenCalledWith(dto);
+    });
+
+    it('returns null so the transform interceptor envelopes it as { data: null, ... }', async () => {
+      const dto = ResendVerificationSchema.parse({ email: 'user@example.com' });
+
+      const result = await controller.resendVerification(dto);
+
+      expect(result).toBeNull();
+    });
+
+    it('resend DTO validation rejects invalid emails', () => {
+      const pipe = new ZodValidationPipe(ResendVerificationSchema);
+
+      expect(() => pipe.transform({ email: 'not-an-email' })).toThrow(ZodError);
     });
   });
 

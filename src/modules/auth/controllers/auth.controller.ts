@@ -15,11 +15,16 @@ import { type LoginDto, LoginSchema } from '../dtos/login.dto';
 import { type LogoutDto, LogoutSchema } from '../dtos/logout.dto';
 import { type RefreshDto, RefreshSchema } from '../dtos/refresh.dto';
 import { type RegisterDto, RegisterSchema } from '../dtos/register.dto';
+import {
+  type ResendVerificationDto,
+  ResendVerificationSchema,
+} from '../dtos/resend-verification.dto';
 import { type VerifyEmailDto, VerifyEmailSchema } from '../dtos/verify-email.dto';
 import { LoginService } from '../services/login.service';
 import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
 import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
+import { ResendVerificationService } from '../services/resend-verification.service';
 import { VerifyEmailService } from '../services/verify-email.service';
 
 @Controller('auth')
@@ -30,6 +35,7 @@ export class AuthController {
     private readonly refreshService: RefreshService,
     private readonly logoutService: LogoutService,
     private readonly verifyEmailService: VerifyEmailService,
+    private readonly resendVerificationService: ResendVerificationService,
   ) {}
 
   @Post('register')
@@ -168,6 +174,15 @@ export class AuthController {
         email_verified: result.user.emailVerified,
       },
     };
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(
+    @Body(new ZodValidationPipe(ResendVerificationSchema)) dto: ResendVerificationDto,
+  ): Promise<null> {
+    await this.resendVerificationService.resend(dto);
+    return null;
   }
 
   @Post('logout')
