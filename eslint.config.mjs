@@ -91,10 +91,10 @@ export default tseslint.config(
                 'infrastructure',
               ],
             },
-            // controllers: service + dtos + common + config + guards + decorators
+            // controllers: service + dtos + common + config + guards + decorators + domain (types)
             {
               from: 'controllers',
-              allow: ['services', 'dtos', 'common', 'config', 'guards', 'decorators'],
+              allow: ['services', 'dtos', 'common', 'config', 'guards', 'decorators', 'domain'],
             },
             // guards: services + common + config (validate tokens, read config)
             {
