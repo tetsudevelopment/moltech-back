@@ -18,6 +18,7 @@ import { AuthModule } from '@/modules/auth/auth.module';
 import { EmailModule } from '@/modules/email/email.module';
 import { HealthModule } from '@/modules/health/health.module';
 import { PaymentsModule } from '@/modules/payments/payments.module';
+import { RentalsModule } from '@/modules/rentals/rentals.module';
 import { StationsModule } from '@/modules/stations/stations.module';
 import { UsersModule } from '@/modules/users/users.module';
 
@@ -85,6 +86,7 @@ const REDACTED_PATHS = [
     UsersModule,
     StationsModule,
     PaymentsModule,
+    RentalsModule,
   ],
   providers: [
     {
