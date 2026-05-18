@@ -1,0 +1,237 @@
+{
+  "info": {
+    "_postman_id": "moltech-api-v1-2026-05-18",
+    "name": "MOLTECH API",
+    "description": "Backend MOLTECH — NestJS 11 + Prisma 6 + Postgres 16 + Redis 7.\n\nEndpoints implementados al 2026-05-18: Health (live, ready) + Auth (register, login, refresh, logout).\n\n## Variables de colección\n- `baseUrl`: URL del API. Default `http://localhost:3000/api/v1`. Cambiar si usás otro puerto.\n- `accessToken`: se setea automáticamente desde el response de /auth/login y /auth/refresh.\n- `refreshToken`: se setea automáticamente desde el response de /auth/login y /auth/refresh.\n- `userId`: se setea automáticamente desde el response de /auth/register o /auth/login.\n- `testEmail` / `testPassword`: credenciales del usuario de prueba.\n\n## Flujo recomendado de prueba\n1. **Health → GET /health/live** → 200 `{\"status\":\"ok\"}`\n2. **Health → GET /health/ready** → 200 con `{db:ok, redis:ok}`\n3. **Auth → POST /auth/register** → 201, crea usuario, guarda `userId`\n4. **Auth → POST /auth/login** → 200, devuelve tokens, los guarda en `accessToken`/`refreshToken`\n5. **Auth → POST /auth/refresh** → 200, rota tokens (los reemplaza en variables)\n6. **Auth → POST /auth/logout** → 204, revoca la familia\n7. **Auth → POST /auth/refresh** (con el viejo `refreshToken`) → 401 **REUSE DETECTED** (la familia entera quedó revocada)\n\n## Notas importantes\n- Todos los responses (excepto health) usan el envelope `{data, meta:{request_id, timestamp}, error}`.\n- Health endpoints NO usan el envelope (compatibilidad con k8s probes).\n- Logout es permisivo: token inválido o expirado igual devuelve 204.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testEmail",
+      "value": "smoke@test.com",
+      "type": "string"
+    },
+    {
+      "key": "testPassword",
+      "value": "SmokeTest1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "description": "Endpoints públicos para liveness y readiness probes (k8s/load balancers).",
+      "item": [
+        {
+          "name": "GET /health/live",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/live",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "live"]
+            },
+            "description": "Liveness probe. SIEMPRE retorna 200 si el proceso está vivo.\n\n**No usa envelope** (k8s espera JSON simple).\n\n**Success 200**:\n```json\n{ \"status\": \"ok\" }\n```\n\n**Errores**: ninguno esperable salvo que el proceso esté caído (no responde → timeout en el cliente)."
+          }
+        },
+        {
+          "name": "GET /health/ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/ready",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "ready"]
+            },
+            "description": "Readiness probe. Verifica que las dependencias (DB + Redis) responden.\n\n**No usa envelope**.\n\n**Success 200**:\n```json\n{ \"status\": \"ready\", \"checks\": { \"db\": \"ok\", \"redis\": \"ok\" } }\n```\n\n**Error 503**:\n```json\n{ \"status\": \"not_ready\", \"checks\": { \"db\": \"fail\", \"redis\": \"ok\" } }\n```\n(o cualquier combinación con `fail`)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Endpoints de autenticación: register, login, refresh, logout. Todos públicos (sin Bearer token).",
+      "item": [
+        {
+          "name": "POST /auth/register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "try {",
+                  "  const r = pm.response.json();",
+                  "  if (r.data && r.data.user_id) {",
+                  "    pm.collectionVariables.set('userId', r.data.user_id);",
+                  "    console.log('Saved userId:', r.data.user_id);",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\",\n  \"first_name\": \"Smoke\",\n  \"last_name\": \"Test\",\n  \"phone\": \"+573001234567\",\n  \"accepted_policy\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Crea una cuenta nueva con email + password.\n\n## Request body\n```json\n{\n  \"email\": \"user@example.com\",\n  \"password\": \"ValidPass1\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"phone\": \"+573001234567\",\n  \"accepted_policy\": true\n}\n```\n\n## Validaciones (Zod)\n- `email`: formato válido, max 254 chars (lowercase normalizado server-side)\n- `password`: min 8 / max 128 chars, ≥1 mayúscula, ≥1 minúscula, ≥1 número\n- `first_name`: trim, 1-100 chars\n- `last_name`: trim, 1-100 chars\n- `phone`: opcional, formato `^\\+?[0-9]{7,15}$`\n- `accepted_policy`: **literal `true`** (no acepta `false` ni `\"true\"`)\n\n## Success 201\n```json\n{\n  \"data\": { \"user_id\": \"uuid-v4\" },\n  \"meta\": {\n    \"request_id\": \"uuid-v4\",\n    \"timestamp\": \"2026-05-18T02:08:21.829Z\"\n  },\n  \"error\": null\n}\n```\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | Cualquier validación Zod falla. `error.details` lista cada campo. |\n| 409 | CONFLICT | Email ya registrado. |\n| 500 | INTERNAL_ERROR | Falla inesperada de DB u otro. No leakea stack. |\n\n## Side effects\n- Password se hashea con Argon2id antes de persistir.\n- Emite audit event `auth.register` (actor = user.id, sin email en metadata)."
+          }
+        },
+        {
+          "name": "POST /auth/login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "try {",
+                  "  const r = pm.response.json();",
+                  "  if (r.data) {",
+                  "    pm.collectionVariables.set('accessToken', r.data.access_token);",
+                  "    pm.collectionVariables.set('refreshToken', r.data.refresh_token);",
+                  "    if (r.data.user) pm.collectionVariables.set('userId', r.data.user.id);",
+                  "    console.log('Saved tokens. User:', r.data.user && r.data.user.id);",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login con email + password.\n\n## Request body\n```json\n{\n  \"email\": \"user@example.com\",\n  \"password\": \"ValidPass1\"\n}\n```\n\n## Validaciones (Zod)\n- `email`: formato válido\n- `password`: min 1 / max 128 chars (la fortaleza ya se validó en register)\n\n## Success 200\n```json\n{\n  \"data\": {\n    \"access_token\": \"eyJ...\",   // JWT RS256, TTL=15m\n    \"refresh_token\": \"eyJ...\",  // JWT RS256, TTL=30d, contiene familyId+tokenId\n    \"expires_in\": 900,           // segundos\n    \"user\": {\n      \"id\": \"uuid-v4\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"status\": \"active\"\n    }\n  },\n  \"meta\": { \"request_id\": \"...\", \"timestamp\": \"...\" },\n  \"error\": null\n}\n```\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | Email malformado o password vacío. |\n| 401 | UNAUTHORIZED | Credenciales inválidas (user not found O password incorrecta — mismo mensaje, intencional). |\n| 401 | UNAUTHORIZED | Cuenta suspendida (`status: \"suspended\"`). |\n| 401 | UNAUTHORIZED | Cuenta inactiva (`status: \"inactive\"`). |\n| 401 | UNAUTHORIZED | Usuario social-only sin password (auth_provider != email). |\n\n## Side effects (audit events)\n- `auth.login.success` (actor = user.id)\n- O `auth.login.failure` con `metadata.reason`:\n  - `user_not_found` (actor='anonymous', sin email en metadata)\n  - `invalid_password` (actor=user.id)\n  - `account_suspended` (actor=user.id)\n  - `account_inactive` (actor=user.id)\n  - `no_password_set` (actor=user.id)\n\n## Side effects (Redis)\n- En login exitoso se crea una `refresh_family` en Redis (key `auth:refresh:family:{familyId}`, TTL=30d)."
+          }
+        },
+        {
+          "name": "POST /auth/refresh",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "try {",
+                  "  const r = pm.response.json();",
+                  "  if (r.data) {",
+                  "    pm.collectionVariables.set('accessToken', r.data.access_token);",
+                  "    pm.collectionVariables.set('refreshToken', r.data.refresh_token);",
+                  "    console.log('Tokens rotated');",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "Rotar el refresh token. Si el token presentado YA FUE ROTADO antes (o la familia no existe), se considera REUSO y la familia se revoca.\n\n## Request body\n```json\n{\n  \"refresh_token\": \"eyJ...\"\n}\n```\n\n## Validaciones\n- `refresh_token`: string min 1 char\n\n## Success 200 (rotation OK)\n```json\n{\n  \"data\": {\n    \"access_token\": \"eyJ...\",\n    \"refresh_token\": \"eyJ...\",  // NUEVO token con mismo familyId, nuevo tokenId\n    \"expires_in\": 900\n  },\n  \"meta\": {...},\n  \"error\": null\n}\n```\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | refresh_token vacío. |\n| 401 | UNAUTHORIZED | Token inválido (firma manipulada, expirado, mal formado). |\n| 401 | UNAUTHORIZED | `\"Refresh token reuse detected\"` — REUSE DETECTED: el tokenId no coincide con el actual en la familia, O la familia ya no existe. **Familia revocada por completo.** |\n\n## Side effects\n- Si OK: actualiza `currentTokenId` de la familia en Redis.\n- Si REUSE: `revokeFamily()` en Redis + audit `auth.refresh.reused` (severity alta).\n- Si OK: audit `auth.refresh.rotated`."
+          }
+        },
+        {
+          "name": "POST /auth/logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Logout: revoca la familia de refresh tokens. **Permisivo** — si el token es inválido o expirado, igual devuelve 204 (porque el token ya es inútil).\n\n## Request body\n```json\n{\n  \"refresh_token\": \"eyJ...\"\n}\n```\n\n## Validaciones\n- `refresh_token`: string min 1 char\n\n## Success 204 No Content\nSin body. El cliente debe descartar localmente los tokens (Postman no los borra automáticamente — agregar `pm.collectionVariables.unset('accessToken')` en un test script si querés que se borren).\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | refresh_token vacío (Zod). |\n\n(Nota: tokens inválidos/expirados NO devuelven 401 — devuelven 204 igual.)\n\n## Side effects\n- Si token válido: `revokeFamily()` en Redis + audit `auth.logout` (actor=sub).\n- Si token inválido: nada (log debug interno, no audit)."
+          }
+        },
+        {
+          "name": "POST /auth/refresh (REUSE TEST — debe fallar 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "**Endpoint duplicado a propósito para demostrar reuse detection.**\n\nUsalo después de: login → refresh (1ra vez) → refresh (2da vez, debería fallar porque ya rotaste).\n\nO: login → logout → refresh (debería fallar porque la familia está revocada).\n\n## Expected: 401\n```json\n{\n  \"data\": null,\n  \"meta\": {...},\n  \"error\": {\n    \"code\": \"UNAUTHORIZED\",\n    \"message\": \"Refresh token reuse detected\"\n  }\n}\n```\n\nLa familia entera quedó revocada — cualquier intento futuro con cualquier token de esa familia también falla."
+          }
+        }
+      ]
+    }
+  ]
+}
