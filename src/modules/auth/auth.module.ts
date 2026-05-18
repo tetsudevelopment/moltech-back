@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { AuthController } from './controllers/auth.controller';
 import { RefreshTokenStore } from './repositories/refresh-token-store';
 import { UserRepository } from './repositories/user.repository';
+import { VerificationTokenRepository } from './repositories/verification-token.repository';
 import { JwtService } from './services/jwt.service';
 import { LoginService } from './services/login.service';
 import { LogoutService } from './services/logout.service';
@@ -17,11 +18,18 @@ import { RegisterService } from './services/register.service';
     JwtService,
     UserRepository,
     RefreshTokenStore,
+    VerificationTokenRepository,
     RegisterService,
     LoginService,
     RefreshService,
     LogoutService,
   ],
-  exports: [PasswordService, JwtService, UserRepository, RefreshTokenStore],
+  exports: [
+    PasswordService,
+    JwtService,
+    UserRepository,
+    RefreshTokenStore,
+    VerificationTokenRepository,
+  ],
 })
 export class AuthModule {}
