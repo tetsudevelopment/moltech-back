@@ -1,14 +1,12 @@
 import { z } from 'zod';
 
+import { ColombianMobileSchema } from '@/common/validation/common.schema';
+
 export const UpdateProfileSchema = z
   .object({
     first_name: z.string().trim().min(1).max(100).optional(),
     last_name: z.string().trim().min(1).max(100).optional(),
-    phone: z
-      .string()
-      .trim()
-      .regex(/^\+?[0-9]{7,15}$/, 'Invalid phone number')
-      .optional(),
+    phone: ColombianMobileSchema.optional(),
     country: z.string().trim().min(1).max(80).optional(),
     city: z.string().trim().min(1).max(80).optional(),
     address: z.string().trim().min(1).max(200).optional(),
