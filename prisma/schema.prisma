@@ -9,6 +9,23 @@ datasource db {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model audit_log {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  action      String   @db.VarChar(100)
+  actor       String   @db.VarChar(50)
+  target_type String?  @db.VarChar(50)
+  target_id   String?  @db.VarChar(200)
+  request_id  String?  @db.VarChar(100)
+  ip          String?  @db.VarChar(45)
+  metadata    Json?    @db.JsonB
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([action], map: "idx_audit_log_action")
+  @@index([actor], map: "idx_audit_log_actor")
+  @@index([created_at(sort: Desc)], map: "idx_audit_log_created_at")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model coupons {
   id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code           String             @unique @db.VarChar(50)
