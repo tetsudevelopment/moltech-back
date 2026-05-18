@@ -65,6 +65,14 @@ export class LoginService {
       throw new UnauthorizedException('Cuenta inactiva');
     }
 
+    if (!user.emailVerified) {
+      this.emitFailure(user.id, 'user_not_verified', context);
+      throw new UnauthorizedException({
+        code: 'USER_NOT_VERIFIED',
+        message: 'Email verification required',
+      });
+    }
+
     const familyId = randomUUID();
     const tokenId = randomUUID();
 
@@ -85,6 +93,7 @@ export class LoginService {
       phone: user.phone,
       authProvider: user.authProvider,
       status: user.status,
+      emailVerified: user.emailVerified,
       createdAt: user.createdAt,
     };
     return { accessToken, refreshToken, user: publicUser };

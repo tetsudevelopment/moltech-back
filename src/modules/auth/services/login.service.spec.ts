@@ -32,6 +32,7 @@ const activeUser: User = {
   phone: null,
   authProvider: 'email',
   status: 'active',
+  emailVerified: true,
   createdAt: new Date('2026-01-01T00:00:00Z'),
 };
 
@@ -230,7 +231,11 @@ describe('LoginService', () => {
 
   describe('account suspended', () => {
     beforeEach(() => {
-      mockFindByEmail.mockResolvedValue({ ...activeUser, status: 'suspended' });
+      mockFindByEmail.mockResolvedValue({
+        ...activeUser,
+        status: 'suspended',
+        emailVerified: true,
+      });
     });
 
     it('throws UnauthorizedException', async () => {
@@ -258,11 +263,62 @@ describe('LoginService', () => {
     });
   });
 
+  // ----------------------------------------------------- failure: not verified ---
+
+  describe('email not verified', () => {
+    beforeEach(() => {
+      mockFindByEmail.mockResolvedValue({
+        ...activeUser,
+        emailVerified: false,
+        status: 'pending_verification',
+      });
+    });
+
+    it('throws UnauthorizedException with USER_NOT_VERIFIED payload', async () => {
+      try {
+        await service.login({ email: 'user@example.com', password: 'ValidPass1!' }, fakeContext);
+        fail('expected UnauthorizedException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(UnauthorizedException);
+        const response = (err as UnauthorizedException).getResponse();
+        expect(response).toMatchObject({ code: 'USER_NOT_VERIFIED' });
+      }
+    });
+
+    it('does NOT issue tokens or create a refresh family when email is unverified', async () => {
+      await expect(
+        service.login({ email: 'user@example.com', password: 'ValidPass1!' }, fakeContext),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(mockSignAccessToken).not.toHaveBeenCalled();
+      expect(mockSignRefreshToken).not.toHaveBeenCalled();
+      expect(mockCreateFamily).not.toHaveBeenCalled();
+    });
+
+    it('emits auth.login.failure with reason=user_not_verified', async () => {
+      await expect(
+        service.login({ email: 'user@example.com', password: 'ValidPass1!' }, fakeContext),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(mockEmit).toHaveBeenCalledWith(
+        AUDIT_RECORDED_EVENT,
+        expect.objectContaining<Partial<AuditRecordedEvent>>({
+          action: 'auth.login.failure',
+          actor: activeUser.id,
+          metadata: expect.objectContaining({ reason: 'user_not_verified' }) as Record<
+            string,
+            unknown
+          >,
+        }),
+      );
+    });
+  });
+
   // ----------------------------------------------------- failure: inactive ---
 
   describe('account inactive', () => {
     beforeEach(() => {
-      mockFindByEmail.mockResolvedValue({ ...activeUser, status: 'inactive' });
+      mockFindByEmail.mockResolvedValue({ ...activeUser, status: 'inactive', emailVerified: true });
     });
 
     it('throws UnauthorizedException', async () => {

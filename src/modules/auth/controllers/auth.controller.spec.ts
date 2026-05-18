@@ -42,7 +42,20 @@ const fakePublicUser = {
   phone: null,
   authProvider: 'email' as const,
   status: 'active' as const,
+  emailVerified: true,
   createdAt: new Date('2026-01-01T00:00:00Z'),
+};
+
+const fakeRegisteredUser = {
+  id: 'new-user-uuid',
+  email: 'user@example.com',
+  firstName: 'John',
+  lastName: 'Doe',
+  phone: null,
+  authProvider: 'email' as const,
+  status: 'pending_verification' as const,
+  emailVerified: false,
+  createdAt: new Date('2026-05-18T00:00:00Z'),
 };
 
 describe('AuthController', () => {
@@ -50,7 +63,10 @@ describe('AuthController', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockRegister.mockResolvedValue({ userId: 'new-user-uuid' });
+    mockRegister.mockResolvedValue({
+      user: fakeRegisteredUser,
+      verificationRequired: true,
+    });
     mockLogin.mockResolvedValue({
       accessToken: 'access-token-value',
       refreshToken: 'refresh-token-value',
@@ -84,12 +100,25 @@ describe('AuthController', () => {
       expect(mockRegister).toHaveBeenCalledWith(dto, { requestId: 'req-abc', ip: '127.0.0.1' });
     });
 
-    it('returns 201 with { user_id } on success', async () => {
+    it('returns 201 with { user, verification_required: true } using snake_case fields', async () => {
       const dto = RegisterSchema.parse(validBody);
 
       const result = await controller.register(dto, fakeRequest);
 
-      expect(result).toEqual({ user_id: 'new-user-uuid' });
+      expect(result).toEqual({
+        user: {
+          id: 'new-user-uuid',
+          email: 'user@example.com',
+          first_name: 'John',
+          last_name: 'Doe',
+          phone: null,
+          email_verified: false,
+          auth_provider: 'email',
+          status: 'pending_verification',
+          created_at: '2026-05-18T00:00:00.000Z',
+        },
+        verification_required: true,
+      });
     });
 
     it('throws ConflictException when EmailAlreadyExistsError is raised', async () => {

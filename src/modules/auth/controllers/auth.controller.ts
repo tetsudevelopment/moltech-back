@@ -34,13 +34,39 @@ export class AuthController {
   async register(
     @Body(new ZodValidationPipe(RegisterSchema)) dto: RegisterDto,
     @Req() req: Request & { id?: string },
-  ): Promise<{ user_id: string }> {
+  ): Promise<{
+    user: {
+      id: string;
+      email: string | null;
+      first_name: string;
+      last_name: string;
+      phone: string | null;
+      email_verified: boolean;
+      auth_provider: string;
+      status: string;
+      created_at: string;
+    };
+    verification_required: true;
+  }> {
     try {
       const result = await this.registerService.register(dto, {
         requestId: req.id,
         ip: req.ip,
       });
-      return { user_id: result.userId };
+      return {
+        user: {
+          id: result.user.id,
+          email: result.user.email,
+          first_name: result.user.firstName,
+          last_name: result.user.lastName,
+          phone: result.user.phone,
+          email_verified: result.user.emailVerified,
+          auth_provider: result.user.authProvider,
+          status: result.user.status,
+          created_at: result.user.createdAt.toISOString(),
+        },
+        verification_required: true,
+      };
     } catch (err) {
       if (err instanceof EmailAlreadyExistsError) {
         throw new ConflictException({

@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 
-import { type User } from '../domain/user.types';
+import { type User, type UserStatus } from '../domain/user.types';
 
 export interface CreateEmailUserInput {
   email: string;
@@ -12,11 +12,17 @@ export interface CreateEmailUserInput {
   lastName: string;
   phone: string | null;
   acceptedPolicy: boolean;
+  initialStatus?: UserStatus;
 }
 
 @Injectable()
 export class UserRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async findById(id: string): Promise<User | null> {
+    const row = await this.prisma.users.findUnique({ where: { id } });
+    return row ? this.mapToDomain(row) : null;
+  }
 
   async findByEmail(email: string): Promise<User | null> {
     const row = await this.prisma.users.findUnique({
@@ -36,6 +42,7 @@ export class UserRepository {
           phone: input.phone,
           accepted_policy: input.acceptedPolicy,
           auth_provider: 'email',
+          status: input.initialStatus ?? 'pending_verification',
         },
       });
       return this.mapToDomain(row);
@@ -47,6 +54,17 @@ export class UserRepository {
     }
   }
 
+  async markEmailVerifiedAndActivate(userId: string): Promise<User> {
+    const row = await this.prisma.users.update({
+      where: { id: userId },
+      data: {
+        email_verified: true,
+        status: 'active',
+      },
+    });
+    return this.mapToDomain(row);
+  }
+
   private mapToDomain(row: {
     id: string;
     email: string | null;
@@ -56,6 +74,7 @@ export class UserRepository {
     phone: string | null;
     auth_provider: string;
     status: string;
+    email_verified: boolean;
     created_at: Date;
   }): User {
     return {
@@ -67,6 +86,7 @@ export class UserRepository {
       phone: row.phone,
       authProvider: row.auth_provider as User['authProvider'],
       status: row.status as User['status'],
+      emailVerified: row.email_verified,
       createdAt: row.created_at,
     };
   }

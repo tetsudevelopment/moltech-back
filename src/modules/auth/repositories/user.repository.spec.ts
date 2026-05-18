@@ -35,6 +35,7 @@ function basePrismaRow() {
 
 const mockFindUnique = jest.fn();
 const mockCreate = jest.fn();
+const mockUpdate = jest.fn();
 
 describe('UserRepository', () => {
   let repo: UserRepository;
@@ -51,6 +52,7 @@ describe('UserRepository', () => {
             users: {
               findUnique: mockFindUnique,
               create: mockCreate,
+              update: mockUpdate,
             },
           },
         },
@@ -72,8 +74,8 @@ describe('UserRepository', () => {
       });
     });
 
-    it('returns a mapped User when the row exists', async () => {
-      const row = makePrismaRow();
+    it('returns a mapped User with emailVerified when the row exists', async () => {
+      const row = makePrismaRow({ email_verified: true });
       mockFindUnique.mockResolvedValue(row);
 
       const result = await repo.findByEmail('test@example.com');
@@ -86,7 +88,18 @@ describe('UserRepository', () => {
       expect(result?.lastName).toBe('Doe');
       expect(result?.authProvider).toBe('email');
       expect(result?.status).toBe('active');
+      expect(result?.emailVerified).toBe(true);
       expect(result?.createdAt).toEqual(new Date('2024-01-01T00:00:00Z'));
+    });
+
+    it('reads emailVerified=false from the row when the email is unverified', async () => {
+      const row = makePrismaRow({ email_verified: false, status: 'pending_verification' });
+      mockFindUnique.mockResolvedValue(row);
+
+      const result = await repo.findByEmail('test@example.com');
+
+      expect(result?.emailVerified).toBe(false);
+      expect(result?.status).toBe('pending_verification');
     });
 
     it('normalizes email to lowercase before querying', async () => {
@@ -100,6 +113,26 @@ describe('UserRepository', () => {
     });
   });
 
+  describe('findById()', () => {
+    it('returns null when no user has that id', async () => {
+      mockFindUnique.mockResolvedValue(null);
+
+      const result = await repo.findById('missing-uuid');
+
+      expect(result).toBeNull();
+      expect(mockFindUnique).toHaveBeenCalledWith({ where: { id: 'missing-uuid' } });
+    });
+
+    it('returns the mapped User when found', async () => {
+      const row = makePrismaRow();
+      mockFindUnique.mockResolvedValue(row);
+
+      const result = await repo.findById('user-uuid-1');
+
+      expect(result?.id).toBe('user-uuid-1');
+    });
+  });
+
   describe('createWithEmail()', () => {
     const input = {
       email: 'New@Example.COM',
@@ -110,30 +143,55 @@ describe('UserRepository', () => {
       acceptedPolicy: true,
     };
 
-    it('inserts row with normalized email and returns mapped User', async () => {
+    it('defaults status to pending_verification when not specified', async () => {
       const row = makePrismaRow({
         email: 'new@example.com',
         password_hash: '$argon2id$newhash',
         first_name: 'Jane',
         last_name: 'Smith',
+        status: 'pending_verification',
+      });
+      mockCreate.mockResolvedValue(row);
+
+      await repo.createWithEmail(input);
+
+      expect(mockCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          email: 'new@example.com',
+          status: 'pending_verification',
+          auth_provider: 'email',
+        }) as Record<string, unknown>,
+      });
+    });
+
+    it('honors initialStatus when provided (e.g. for social-link flows)', async () => {
+      const row = makePrismaRow({ status: 'active' });
+      mockCreate.mockResolvedValue(row);
+
+      await repo.createWithEmail({ ...input, initialStatus: 'active' });
+
+      expect(mockCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ status: 'active' }) as Record<string, unknown>,
+      });
+    });
+
+    it('returns mapped User including emailVerified', async () => {
+      const row = makePrismaRow({
+        email: 'new@example.com',
+        password_hash: '$argon2id$newhash',
+        first_name: 'Jane',
+        last_name: 'Smith',
+        email_verified: false,
+        status: 'pending_verification',
       });
       mockCreate.mockResolvedValue(row);
 
       const result = await repo.createWithEmail(input);
 
-      expect(mockCreate).toHaveBeenCalledWith({
-        data: {
-          email: 'new@example.com',
-          password_hash: '$argon2id$newhash',
-          first_name: 'Jane',
-          last_name: 'Smith',
-          phone: null,
-          accepted_policy: true,
-          auth_provider: 'email',
-        },
-      });
       expect(result.email).toBe('new@example.com');
       expect(result.firstName).toBe('Jane');
+      expect(result.emailVerified).toBe(false);
+      expect(result.status).toBe('pending_verification');
     });
 
     it('throws EmailAlreadyExistsError on P2002 unique constraint violation', async () => {
@@ -151,6 +209,22 @@ describe('UserRepository', () => {
       mockCreate.mockRejectedValue(genericError);
 
       await expect(repo.createWithEmail(input)).rejects.toThrow('DB connection lost');
+    });
+  });
+
+  describe('markEmailVerifiedAndActivate()', () => {
+    it('sets email_verified=true and status=active on the user row', async () => {
+      const updatedRow = makePrismaRow({ email_verified: true, status: 'active' });
+      mockUpdate.mockResolvedValue(updatedRow);
+
+      const result = await repo.markEmailVerifiedAndActivate('user-uuid-1');
+
+      expect(mockUpdate).toHaveBeenCalledWith({
+        where: { id: 'user-uuid-1' },
+        data: { email_verified: true, status: 'active' },
+      });
+      expect(result.emailVerified).toBe(true);
+      expect(result.status).toBe('active');
     });
   });
 });

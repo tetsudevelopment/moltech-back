@@ -1,3 +1,5 @@
+export type UserStatus = 'active' | 'suspended' | 'inactive' | 'pending_verification';
+
 export interface User {
   id: string;
   email: string | null;
@@ -6,7 +8,8 @@ export interface User {
   lastName: string;
   phone: string | null;
   authProvider: 'email' | 'google' | 'facebook';
-  status: 'active' | 'suspended' | 'inactive';
+  status: UserStatus;
+  emailVerified: boolean;
   createdAt: Date;
 }
 
