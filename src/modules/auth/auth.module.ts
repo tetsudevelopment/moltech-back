@@ -4,7 +4,9 @@ import { AuthController } from './controllers/auth.controller';
 import { RefreshTokenStore } from './repositories/refresh-token-store';
 import { UserRepository } from './repositories/user.repository';
 import { VerificationTokenRepository } from './repositories/verification-token.repository';
+import { FacebookOAuthVerifier } from './services/facebook-oauth.verifier';
 import { ForgotPasswordService } from './services/forgot-password.service';
+import { GoogleOAuthVerifier } from './services/google-oauth.verifier';
 import { JwtService } from './services/jwt.service';
 import { LoginService } from './services/login.service';
 import { LogoutService } from './services/logout.service';
@@ -13,6 +15,7 @@ import { RefreshService } from './services/refresh.service';
 import { RegisterService } from './services/register.service';
 import { ResendVerificationService } from './services/resend-verification.service';
 import { ResetPasswordService } from './services/reset-password.service';
+import { SocialLoginService } from './services/social-login.service';
 import { VerifyEmailService } from './services/verify-email.service';
 
 @Module({
@@ -31,6 +34,9 @@ import { VerifyEmailService } from './services/verify-email.service';
     ResendVerificationService,
     ForgotPasswordService,
     ResetPasswordService,
+    GoogleOAuthVerifier,
+    FacebookOAuthVerifier,
+    SocialLoginService,
   ],
   exports: [
     PasswordService,

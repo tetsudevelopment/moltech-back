@@ -34,6 +34,7 @@ function basePrismaRow() {
 }
 
 const mockFindUnique = jest.fn();
+const mockFindFirst = jest.fn();
 const mockCreate = jest.fn();
 const mockUpdate = jest.fn();
 
@@ -51,6 +52,7 @@ describe('UserRepository', () => {
           useValue: {
             users: {
               findUnique: mockFindUnique,
+              findFirst: mockFindFirst,
               create: mockCreate,
               update: mockUpdate,
             },
@@ -225,6 +227,103 @@ describe('UserRepository', () => {
       });
       expect(result.emailVerified).toBe(true);
       expect(result.status).toBe('active');
+    });
+  });
+
+  describe('findByProvider()', () => {
+    it('returns null when no user matches the (provider, providerId) pair', async () => {
+      mockFindFirst.mockResolvedValue(null);
+
+      const result = await repo.findByProvider('google', 'google-sub-123');
+
+      expect(result).toBeNull();
+      expect(mockFindFirst).toHaveBeenCalledWith({
+        where: { auth_provider: 'google', auth_provider_id: 'google-sub-123' },
+      });
+    });
+
+    it('returns the mapped User when a social account exists', async () => {
+      const row = makePrismaRow({
+        auth_provider: 'google',
+        auth_provider_id: 'google-sub-123',
+        email_verified: true,
+        status: 'active',
+      });
+      mockFindFirst.mockResolvedValue(row);
+
+      const result = await repo.findByProvider('google', 'google-sub-123');
+
+      expect(result?.authProvider).toBe('google');
+      expect(result?.authProviderId).toBe('google-sub-123');
+      expect(result?.emailVerified).toBe(true);
+    });
+  });
+
+  describe('createSocialUser()', () => {
+    const input = {
+      email: 'Social@Example.COM',
+      firstName: 'Jane',
+      lastName: 'Smith',
+      authProvider: 'google' as const,
+      authProviderId: 'google-sub-999',
+    };
+
+    it('inserts a row with email lowercased, email_verified=true, status=active', async () => {
+      mockCreate.mockResolvedValue(
+        makePrismaRow({
+          email: 'social@example.com',
+          first_name: 'Jane',
+          last_name: 'Smith',
+          auth_provider: 'google',
+          auth_provider_id: 'google-sub-999',
+          email_verified: true,
+          status: 'active',
+          accepted_policy: true,
+        }),
+      );
+
+      await repo.createSocialUser(input);
+
+      expect(mockCreate).toHaveBeenCalledWith({
+        data: {
+          email: 'social@example.com',
+          first_name: 'Jane',
+          last_name: 'Smith',
+          auth_provider: 'google',
+          auth_provider_id: 'google-sub-999',
+          accepted_policy: true,
+          email_verified: true,
+          status: 'active',
+        },
+      });
+    });
+
+    it('returns a mapped User with the social provider id', async () => {
+      mockCreate.mockResolvedValue(
+        makePrismaRow({
+          email: 'social@example.com',
+          auth_provider: 'google',
+          auth_provider_id: 'google-sub-999',
+          email_verified: true,
+          status: 'active',
+        }),
+      );
+
+      const result = await repo.createSocialUser(input);
+
+      expect(result.authProvider).toBe('google');
+      expect(result.authProviderId).toBe('google-sub-999');
+      expect(result.emailVerified).toBe(true);
+    });
+
+    it('throws EmailAlreadyExistsError on P2002 unique constraint violation', async () => {
+      const prismaError = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '6.0.0',
+      });
+      mockCreate.mockRejectedValue(prismaError);
+
+      await expect(repo.createSocialUser(input)).rejects.toThrow(EmailAlreadyExistsError);
     });
   });
 

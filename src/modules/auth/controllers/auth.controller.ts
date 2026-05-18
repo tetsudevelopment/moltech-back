@@ -21,6 +21,7 @@ import {
   ResendVerificationSchema,
 } from '../dtos/resend-verification.dto';
 import { type ResetPasswordDto, ResetPasswordSchema } from '../dtos/reset-password.dto';
+import { type SocialLoginDto, SocialLoginSchema } from '../dtos/social-login.dto';
 import { type VerifyEmailDto, VerifyEmailSchema } from '../dtos/verify-email.dto';
 import { ForgotPasswordService } from '../services/forgot-password.service';
 import { LoginService } from '../services/login.service';
@@ -29,6 +30,7 @@ import { RefreshService } from '../services/refresh.service';
 import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
 import { ResendVerificationService } from '../services/resend-verification.service';
 import { ResetPasswordService } from '../services/reset-password.service';
+import { SocialLoginService } from '../services/social-login.service';
 import { VerifyEmailService } from '../services/verify-email.service';
 
 @Controller('auth')
@@ -42,6 +44,7 @@ export class AuthController {
     private readonly resendVerificationService: ResendVerificationService,
     private readonly forgotPasswordService: ForgotPasswordService,
     private readonly resetPasswordService: ResetPasswordService,
+    private readonly socialLoginService: SocialLoginService,
   ) {}
 
   @Post('register')
@@ -215,6 +218,47 @@ export class AuthController {
       ip: req.ip,
     });
     return null;
+  }
+
+  @Post('social-login')
+  @HttpCode(HttpStatus.OK)
+  async socialLogin(
+    @Body(new ZodValidationPipe(SocialLoginSchema)) dto: SocialLoginDto,
+    @Req() req: Request & { id?: string },
+  ): Promise<{
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    is_new_user: boolean;
+    user: {
+      id: string;
+      email: string | null;
+      first_name: string;
+      last_name: string;
+      auth_provider: string;
+      email_verified: boolean;
+      status: string;
+    };
+  }> {
+    const result = await this.socialLoginService.login(dto, {
+      requestId: req.id,
+      ip: req.ip,
+    });
+    return {
+      access_token: result.accessToken,
+      refresh_token: result.refreshToken,
+      expires_in: 900,
+      is_new_user: result.isNewUser,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        first_name: result.user.firstName,
+        last_name: result.user.lastName,
+        auth_provider: result.user.authProvider,
+        email_verified: result.user.emailVerified,
+        status: result.user.status,
+      },
+    };
   }
 
   @Post('logout')

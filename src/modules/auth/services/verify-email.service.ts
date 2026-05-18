@@ -85,6 +85,7 @@ export class VerifyEmailService {
       lastName: activatedUser.lastName,
       phone: activatedUser.phone,
       authProvider: activatedUser.authProvider,
+      authProviderId: activatedUser.authProviderId,
       status: activatedUser.status,
       emailVerified: activatedUser.emailVerified,
       createdAt: activatedUser.createdAt,

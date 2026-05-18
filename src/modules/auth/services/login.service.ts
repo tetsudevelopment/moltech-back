@@ -92,6 +92,7 @@ export class LoginService {
       lastName: user.lastName,
       phone: user.phone,
       authProvider: user.authProvider,
+      authProviderId: user.authProviderId,
       status: user.status,
       emailVerified: user.emailVerified,
       createdAt: user.createdAt,

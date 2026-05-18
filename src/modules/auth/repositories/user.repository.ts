@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 
-import { type User, type UserStatus } from '../domain/user.types';
+import { type AuthProvider, type User, type UserStatus } from '../domain/user.types';
 
 export interface CreateEmailUserInput {
   email: string;
@@ -13,6 +13,14 @@ export interface CreateEmailUserInput {
   phone: string | null;
   acceptedPolicy: boolean;
   initialStatus?: UserStatus;
+}
+
+export interface CreateSocialUserInput {
+  email: string;
+  firstName: string;
+  lastName: string;
+  authProvider: 'google' | 'facebook';
+  authProviderId: string;
 }
 
 @Injectable()
@@ -31,6 +39,13 @@ export class UserRepository {
     return row ? this.mapToDomain(row) : null;
   }
 
+  async findByProvider(provider: AuthProvider, providerId: string): Promise<User | null> {
+    const row = await this.prisma.users.findFirst({
+      where: { auth_provider: provider, auth_provider_id: providerId },
+    });
+    return row ? this.mapToDomain(row) : null;
+  }
+
   async createWithEmail(input: CreateEmailUserInput): Promise<User> {
     try {
       const row = await this.prisma.users.create({
@@ -43,6 +58,29 @@ export class UserRepository {
           accepted_policy: input.acceptedPolicy,
           auth_provider: 'email',
           status: input.initialStatus ?? 'pending_verification',
+        },
+      });
+      return this.mapToDomain(row);
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new EmailAlreadyExistsError(input.email);
+      }
+      throw err;
+    }
+  }
+
+  async createSocialUser(input: CreateSocialUserInput): Promise<User> {
+    try {
+      const row = await this.prisma.users.create({
+        data: {
+          email: input.email.toLowerCase(),
+          first_name: input.firstName,
+          last_name: input.lastName,
+          auth_provider: input.authProvider,
+          auth_provider_id: input.authProviderId,
+          accepted_policy: true,
+          email_verified: true,
+          status: 'active',
         },
       });
       return this.mapToDomain(row);
@@ -81,6 +119,7 @@ export class UserRepository {
     last_name: string;
     phone: string | null;
     auth_provider: string;
+    auth_provider_id: string | null;
     status: string;
     email_verified: boolean;
     created_at: Date;
@@ -92,7 +131,8 @@ export class UserRepository {
       firstName: row.first_name,
       lastName: row.last_name,
       phone: row.phone,
-      authProvider: row.auth_provider as User['authProvider'],
+      authProvider: row.auth_provider as AuthProvider,
+      authProviderId: row.auth_provider_id,
       status: row.status as User['status'],
       emailVerified: row.email_verified,
       createdAt: row.created_at,

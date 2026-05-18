@@ -10,6 +10,7 @@ import { RefreshSchema } from '@/modules/auth/dtos/refresh.dto';
 import { RegisterSchema } from '@/modules/auth/dtos/register.dto';
 import { ResendVerificationSchema } from '@/modules/auth/dtos/resend-verification.dto';
 import { ResetPasswordSchema } from '@/modules/auth/dtos/reset-password.dto';
+import { SocialLoginSchema } from '@/modules/auth/dtos/social-login.dto';
 import { VerifyEmailSchema } from '@/modules/auth/dtos/verify-email.dto';
 
 import { AuthController } from './auth.controller';
@@ -20,6 +21,7 @@ import { RefreshService } from '../services/refresh.service';
 import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
 import { ResendVerificationService } from '../services/resend-verification.service';
 import { ResetPasswordService } from '../services/reset-password.service';
+import { SocialLoginService } from '../services/social-login.service';
 import { VerifyEmailService } from '../services/verify-email.service';
 
 const mockRegister = jest.fn();
@@ -30,6 +32,7 @@ const mockVerifyEmail = jest.fn();
 const mockResendVerification = jest.fn();
 const mockForgotPassword = jest.fn();
 const mockResetPassword = jest.fn();
+const mockSocialLogin = jest.fn();
 
 const validBody = {
   email: 'user@example.com',
@@ -97,6 +100,16 @@ describe('AuthController', () => {
     mockResendVerification.mockResolvedValue(undefined);
     mockForgotPassword.mockResolvedValue(undefined);
     mockResetPassword.mockResolvedValue(undefined);
+    mockSocialLogin.mockResolvedValue({
+      accessToken: 'social-access',
+      refreshToken: 'social-refresh',
+      user: {
+        ...fakePublicUser,
+        authProvider: 'google' as const,
+        authProviderId: 'google-sub-001',
+      },
+      isNewUser: false,
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -117,6 +130,10 @@ describe('AuthController', () => {
         {
           provide: ResetPasswordService,
           useValue: { reset: mockResetPassword },
+        },
+        {
+          provide: SocialLoginService,
+          useValue: { login: mockSocialLogin },
         },
       ],
     }).compile();
@@ -413,6 +430,69 @@ describe('AuthController', () => {
           new_password: 'allowercase',
         }),
       ).toThrow(ZodError);
+    });
+  });
+
+  describe('POST /auth/social-login', () => {
+    const validSocialBody = { provider: 'google', id_token: 'google-id-token-value' };
+
+    it('calls SocialLoginService.login with parsed DTO and context', async () => {
+      const dto = SocialLoginSchema.parse(validSocialBody);
+
+      await controller.socialLogin(dto, fakeRequest);
+
+      expect(mockSocialLogin).toHaveBeenCalledWith(dto, {
+        requestId: 'req-abc',
+        ip: '127.0.0.1',
+      });
+    });
+
+    it('returns 200 with access_token, refresh_token, is_new_user and snake_case user', async () => {
+      const dto = SocialLoginSchema.parse(validSocialBody);
+
+      const result = await controller.socialLogin(dto, fakeRequest);
+
+      expect(result).toMatchObject({
+        access_token: 'social-access',
+        refresh_token: 'social-refresh',
+        expires_in: 900,
+        is_new_user: false,
+        user: {
+          id: fakePublicUser.id,
+          email: fakePublicUser.email,
+          first_name: fakePublicUser.firstName,
+          last_name: fakePublicUser.lastName,
+          auth_provider: 'google',
+          email_verified: true,
+          status: 'active',
+        },
+      });
+    });
+
+    it('passes is_new_user=true through when SocialLoginService reports a new signup', async () => {
+      mockSocialLogin.mockResolvedValue({
+        accessToken: 'a',
+        refreshToken: 'b',
+        user: { ...fakePublicUser, authProvider: 'google' as const, authProviderId: 'sub' },
+        isNewUser: true,
+      });
+      const dto = SocialLoginSchema.parse(validSocialBody);
+
+      const result = await controller.socialLogin(dto, fakeRequest);
+
+      expect(result.is_new_user).toBe(true);
+    });
+
+    it('rejects unsupported provider values via DTO validation', () => {
+      const pipe = new ZodValidationPipe(SocialLoginSchema);
+
+      expect(() => pipe.transform({ provider: 'apple', id_token: 'x' })).toThrow(ZodError);
+    });
+
+    it('rejects empty id_token via DTO validation', () => {
+      const pipe = new ZodValidationPipe(SocialLoginSchema);
+
+      expect(() => pipe.transform({ provider: 'google', id_token: '' })).toThrow(ZodError);
     });
   });
 
