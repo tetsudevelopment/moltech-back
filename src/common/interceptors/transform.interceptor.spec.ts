@@ -136,6 +136,58 @@ describe('TransformInterceptor', () => {
     });
   });
 
+  describe('paginated response merging', () => {
+    it('lifts pagination from { data, pagination } into meta.pagination', async () => {
+      const requestId = '550e8400-e29b-41d4-a716-446655440000';
+      const context = makeContext(requestId);
+      const handler = makeHandler({
+        data: [{ id: '1' }, { id: '2' }],
+        pagination: {
+          page: 1,
+          page_size: 20,
+          total: 2,
+          total_pages: 1,
+          has_next: false,
+          has_previous: false,
+        },
+      });
+
+      const result = await collectValue<{
+        data: unknown;
+        meta: { pagination?: unknown; request_id: string; timestamp: string };
+        error: null;
+      }>(interceptor, context, handler);
+
+      expect(result.data).toEqual([{ id: '1' }, { id: '2' }]);
+      expect(result.meta.pagination).toEqual({
+        page: 1,
+        page_size: 20,
+        total: 2,
+        total_pages: 1,
+        has_next: false,
+        has_previous: false,
+      });
+      expect(result.error).toBeNull();
+    });
+
+    it('does NOT lift pagination when data is not an array', async () => {
+      const context = makeContext('any-id');
+      const handler = makeHandler({
+        data: { id: '1' },
+        pagination: { page: 1 },
+      });
+
+      const result = await collectValue<{
+        data: unknown;
+        meta: { pagination?: unknown };
+      }>(interceptor, context, handler);
+
+      // The value is wrapped as-is into envelope.data; meta.pagination is NOT set.
+      expect(result.data).toEqual({ data: { id: '1' }, pagination: { page: 1 } });
+      expect(result.meta.pagination).toBeUndefined();
+    });
+  });
+
   describe('idempotency — pre-wrapped envelopes', () => {
     it('passes through an already-wrapped envelope unchanged', async () => {
       const alreadyWrapped = {

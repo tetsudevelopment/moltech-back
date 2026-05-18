@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 
+import { type PaginatedResponse } from '@/common/interceptors/pagination.types';
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe';
 import { UuidSchema } from '@/common/validation/common.schema';
 import { JwtAuthGuard } from '@/modules/auth/guards/jwt-auth.guard';
@@ -30,20 +31,6 @@ interface PublicStationDetail extends PublicStation {
   available_power_banks: number;
 }
 
-interface ListEnvelope {
-  data: PublicStation[];
-  meta: {
-    pagination: {
-      page: number;
-      pageSize: number;
-      total: number;
-      totalPages: number;
-      hasNext: boolean;
-      hasPrevious: boolean;
-    };
-  };
-}
-
 @Controller('stations')
 @UseGuards(JwtAuthGuard)
 export class StationsController {
@@ -52,7 +39,7 @@ export class StationsController {
   @Get()
   async list(
     @Query(new ZodValidationPipe(ListStationsQuerySchema)) query: ListStationsQueryDto,
-  ): Promise<ListEnvelope> {
+  ): Promise<PaginatedResponse<PublicStation>> {
     const result = await this.stationService.list({
       ...(query.city !== undefined ? { city: query.city } : {}),
       ...(query.status !== undefined ? { status: query.status } : {}),
@@ -62,15 +49,13 @@ export class StationsController {
     const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
     return {
       data: result.data.map(serializeStation),
-      meta: {
-        pagination: {
-          page: result.page,
-          pageSize: result.pageSize,
-          total: result.total,
-          totalPages,
-          hasNext: result.page < totalPages,
-          hasPrevious: result.page > 1,
-        },
+      pagination: {
+        page: result.page,
+        page_size: result.pageSize,
+        total: result.total,
+        total_pages: totalPages,
+        has_next: result.page < totalPages,
+        has_previous: result.page > 1,
       },
     };
   }

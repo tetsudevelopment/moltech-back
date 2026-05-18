@@ -10,11 +10,18 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { map, type Observable } from 'rxjs';
 
+import { isPaginatedResponse, type Pagination } from './pagination.types';
 import { SKIP_ENVELOPE_KEY } from '../decorators/skip-envelope.decorator';
+
+interface SuccessEnvelopeMeta {
+  request_id: string;
+  timestamp: string;
+  pagination?: Pagination;
+}
 
 interface SuccessEnvelope<T> {
   data: T;
-  meta: { request_id: string; timestamp: string };
+  meta: SuccessEnvelopeMeta;
   error: null;
 }
 
@@ -40,11 +47,16 @@ export class TransformInterceptor implements NestInterceptor {
         if (isAlreadyWrapped(value)) {
           return value;
         }
-        const envelope: SuccessEnvelope<unknown> = {
-          data: value ?? null,
-          meta: { request_id: requestId, timestamp: new Date().toISOString() },
-          error: null,
+        const meta: SuccessEnvelopeMeta = {
+          request_id: requestId,
+          timestamp: new Date().toISOString(),
         };
+        let data: unknown = value ?? null;
+        if (isPaginatedResponse(value)) {
+          data = value.data;
+          meta.pagination = value.pagination;
+        }
+        const envelope: SuccessEnvelope<unknown> = { data, meta, error: null };
         return envelope;
       }),
     );
