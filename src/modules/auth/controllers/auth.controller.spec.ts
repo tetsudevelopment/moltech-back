@@ -3,6 +3,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { ZodError } from 'zod';
 
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe';
+import { ForgotPasswordSchema } from '@/modules/auth/dtos/forgot-password.dto';
 import { LoginSchema } from '@/modules/auth/dtos/login.dto';
 import { LogoutSchema } from '@/modules/auth/dtos/logout.dto';
 import { RefreshSchema } from '@/modules/auth/dtos/refresh.dto';
@@ -11,6 +12,7 @@ import { ResendVerificationSchema } from '@/modules/auth/dtos/resend-verificatio
 import { VerifyEmailSchema } from '@/modules/auth/dtos/verify-email.dto';
 
 import { AuthController } from './auth.controller';
+import { ForgotPasswordService } from '../services/forgot-password.service';
 import { LoginService } from '../services/login.service';
 import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
@@ -24,6 +26,7 @@ const mockRefresh = jest.fn();
 const mockLogout = jest.fn();
 const mockVerifyEmail = jest.fn();
 const mockResendVerification = jest.fn();
+const mockForgotPassword = jest.fn();
 
 const validBody = {
   email: 'user@example.com',
@@ -89,6 +92,7 @@ describe('AuthController', () => {
       user: { ...fakePublicUser, emailVerified: true, status: 'active' as const },
     });
     mockResendVerification.mockResolvedValue(undefined);
+    mockForgotPassword.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -101,6 +105,10 @@ describe('AuthController', () => {
         {
           provide: ResendVerificationService,
           useValue: { resend: mockResendVerification },
+        },
+        {
+          provide: ForgotPasswordService,
+          useValue: { request: mockForgotPassword },
         },
       ],
     }).compile();
@@ -323,6 +331,33 @@ describe('AuthController', () => {
       const pipe = new ZodValidationPipe(ResendVerificationSchema);
 
       expect(() => pipe.transform({ email: 'not-an-email' })).toThrow(ZodError);
+    });
+  });
+
+  describe('POST /auth/forgot-password', () => {
+    it('calls ForgotPasswordService.request with parsed DTO and context', async () => {
+      const dto = ForgotPasswordSchema.parse({ email: 'user@example.com' });
+
+      await controller.forgotPassword(dto, fakeRequest);
+
+      expect(mockForgotPassword).toHaveBeenCalledWith(dto, {
+        requestId: 'req-abc',
+        ip: '127.0.0.1',
+      });
+    });
+
+    it('returns null so the response envelope is { data: null, ... } for every email', async () => {
+      const dto = ForgotPasswordSchema.parse({ email: 'user@example.com' });
+
+      const result = await controller.forgotPassword(dto, fakeRequest);
+
+      expect(result).toBeNull();
+    });
+
+    it('forgot-password DTO validation rejects invalid emails', () => {
+      const pipe = new ZodValidationPipe(ForgotPasswordSchema);
+
+      expect(() => pipe.transform({ email: 'not-email' })).toThrow(ZodError);
     });
   });
 

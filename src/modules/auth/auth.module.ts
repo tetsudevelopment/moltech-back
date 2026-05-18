@@ -4,6 +4,7 @@ import { AuthController } from './controllers/auth.controller';
 import { RefreshTokenStore } from './repositories/refresh-token-store';
 import { UserRepository } from './repositories/user.repository';
 import { VerificationTokenRepository } from './repositories/verification-token.repository';
+import { ForgotPasswordService } from './services/forgot-password.service';
 import { JwtService } from './services/jwt.service';
 import { LoginService } from './services/login.service';
 import { LogoutService } from './services/logout.service';
@@ -27,6 +28,7 @@ import { VerifyEmailService } from './services/verify-email.service';
     LogoutService,
     VerifyEmailService,
     ResendVerificationService,
+    ForgotPasswordService,
   ],
   exports: [
     PasswordService,

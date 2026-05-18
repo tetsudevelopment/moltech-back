@@ -11,6 +11,7 @@ import type { Request } from 'express';
 
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe';
 
+import { type ForgotPasswordDto, ForgotPasswordSchema } from '../dtos/forgot-password.dto';
 import { type LoginDto, LoginSchema } from '../dtos/login.dto';
 import { type LogoutDto, LogoutSchema } from '../dtos/logout.dto';
 import { type RefreshDto, RefreshSchema } from '../dtos/refresh.dto';
@@ -20,6 +21,7 @@ import {
   ResendVerificationSchema,
 } from '../dtos/resend-verification.dto';
 import { type VerifyEmailDto, VerifyEmailSchema } from '../dtos/verify-email.dto';
+import { ForgotPasswordService } from '../services/forgot-password.service';
 import { LoginService } from '../services/login.service';
 import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
@@ -36,6 +38,7 @@ export class AuthController {
     private readonly logoutService: LogoutService,
     private readonly verifyEmailService: VerifyEmailService,
     private readonly resendVerificationService: ResendVerificationService,
+    private readonly forgotPasswordService: ForgotPasswordService,
   ) {}
 
   @Post('register')
@@ -182,6 +185,19 @@ export class AuthController {
     @Body(new ZodValidationPipe(ResendVerificationSchema)) dto: ResendVerificationDto,
   ): Promise<null> {
     await this.resendVerificationService.resend(dto);
+    return null;
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(
+    @Body(new ZodValidationPipe(ForgotPasswordSchema)) dto: ForgotPasswordDto,
+    @Req() req: Request & { id?: string },
+  ): Promise<null> {
+    await this.forgotPasswordService.request(dto, {
+      requestId: req.id,
+      ip: req.ip,
+    });
     return null;
   }
 
