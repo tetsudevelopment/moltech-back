@@ -20,6 +20,7 @@ function validEnvFixture(): Record<string, string> {
     FACEBOOK_APP_SECRET: 'facebook-app-secret',
     RESEND_API_KEY: 're_test_key',
     RESEND_FROM_EMAIL: 'no-reply@moltech.app',
+    EMAIL_VERIFICATION_CODE_TTL_MIN: '15',
     PAYMENT_GATEWAY: 'mock',
     MOCK_GATEWAY_BEHAVIOR: 'always_success',
     CORS_ALLOWED_ORIGINS: 'https://moltech.app,moltech://*',

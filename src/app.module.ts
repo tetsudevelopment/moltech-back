@@ -15,6 +15,7 @@ import { PrismaModule } from '@/infrastructure/prisma/prisma.module';
 import { RedisModule } from '@/infrastructure/redis/redis.module';
 import { AuditModule } from '@/modules/audit/audit.module';
 import { AuthModule } from '@/modules/auth/auth.module';
+import { EmailModule } from '@/modules/email/email.module';
 import { HealthModule } from '@/modules/health/health.module';
 
 const REDACTED_PATHS = [
@@ -75,6 +76,7 @@ const REDACTED_PATHS = [
     PrismaModule,
     RedisModule,
     AuditModule,
+    EmailModule,
     HealthModule,
     AuthModule,
   ],

@@ -36,6 +36,7 @@ export const EnvSchema = z
     // === Email (Resend) ===
     RESEND_API_KEY: z.string().min(1),
     RESEND_FROM_EMAIL: z.email(),
+    EMAIL_VERIFICATION_CODE_TTL_MIN: z.coerce.number().int().positive().default(15),
 
     // === Payment gateway ===
     PAYMENT_GATEWAY: z.enum(PAYMENT_GATEWAY_VALUES),
