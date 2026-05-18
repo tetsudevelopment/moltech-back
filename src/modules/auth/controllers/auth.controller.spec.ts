@@ -1,4 +1,4 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ZodError } from 'zod';
 
@@ -7,17 +7,20 @@ import { LoginSchema } from '@/modules/auth/dtos/login.dto';
 import { LogoutSchema } from '@/modules/auth/dtos/logout.dto';
 import { RefreshSchema } from '@/modules/auth/dtos/refresh.dto';
 import { RegisterSchema } from '@/modules/auth/dtos/register.dto';
+import { VerifyEmailSchema } from '@/modules/auth/dtos/verify-email.dto';
 
 import { AuthController } from './auth.controller';
 import { LoginService } from '../services/login.service';
 import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
 import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
+import { VerifyEmailService } from '../services/verify-email.service';
 
 const mockRegister = jest.fn();
 const mockLogin = jest.fn();
 const mockRefresh = jest.fn();
 const mockLogout = jest.fn();
+const mockVerifyEmail = jest.fn();
 
 const validBody = {
   email: 'user@example.com',
@@ -77,6 +80,11 @@ describe('AuthController', () => {
       refreshToken: 'new-refresh-token',
     });
     mockLogout.mockResolvedValue(undefined);
+    mockVerifyEmail.mockResolvedValue({
+      accessToken: 'verify-access-token',
+      refreshToken: 'verify-refresh-token',
+      user: { ...fakePublicUser, emailVerified: true, status: 'active' as const },
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -85,6 +93,7 @@ describe('AuthController', () => {
         { provide: LoginService, useValue: { login: mockLogin } },
         { provide: RefreshService, useValue: { refresh: mockRefresh } },
         { provide: LogoutService, useValue: { logout: mockLogout } },
+        { provide: VerifyEmailService, useValue: { verify: mockVerifyEmail } },
       ],
     }).compile();
 
@@ -222,6 +231,66 @@ describe('AuthController', () => {
       const pipe = new ZodValidationPipe(RefreshSchema);
 
       expect(() => pipe.transform({ refresh_token: '' })).toThrow(ZodError);
+    });
+  });
+
+  describe('POST /auth/verify-email', () => {
+    const validVerifyBody = { email: 'user@example.com', code: '123456' };
+
+    it('calls VerifyEmailService.verify with parsed DTO and request context', async () => {
+      const dto = VerifyEmailSchema.parse(validVerifyBody);
+
+      await controller.verifyEmail(dto, fakeRequest);
+
+      expect(mockVerifyEmail).toHaveBeenCalledWith(dto, {
+        requestId: 'req-abc',
+        ip: '127.0.0.1',
+      });
+    });
+
+    it('returns 200 with access_token, refresh_token, expires_in, and snake_case user', async () => {
+      const dto = VerifyEmailSchema.parse(validVerifyBody);
+
+      const result = await controller.verifyEmail(dto, fakeRequest);
+
+      expect(result).toMatchObject({
+        access_token: 'verify-access-token',
+        refresh_token: 'verify-refresh-token',
+        expires_in: 900,
+        user: {
+          id: fakePublicUser.id,
+          email: fakePublicUser.email,
+          first_name: fakePublicUser.firstName,
+          last_name: fakePublicUser.lastName,
+          status: 'active',
+          email_verified: true,
+        },
+      });
+    });
+
+    it('propagates BadRequestException from VerifyEmailService (TOKEN_INVALID)', async () => {
+      mockVerifyEmail.mockRejectedValue(
+        new BadRequestException({ code: 'TOKEN_INVALID', message: 'Invalid code' }),
+      );
+      const dto = VerifyEmailSchema.parse(validVerifyBody);
+
+      await expect(controller.verifyEmail(dto, fakeRequest)).rejects.toThrow(BadRequestException);
+    });
+
+    it('verify-email DTO validation rejects non-6-digit codes', () => {
+      const pipe = new ZodValidationPipe(VerifyEmailSchema);
+
+      expect(() => pipe.transform({ email: 'user@example.com', code: 'abc' })).toThrow(ZodError);
+      expect(() => pipe.transform({ email: 'user@example.com', code: '12345' })).toThrow(ZodError);
+      expect(() => pipe.transform({ email: 'user@example.com', code: '1234567' })).toThrow(
+        ZodError,
+      );
+    });
+
+    it('verify-email DTO validation rejects invalid email', () => {
+      const pipe = new ZodValidationPipe(VerifyEmailSchema);
+
+      expect(() => pipe.transform({ email: 'not-email', code: '123456' })).toThrow(ZodError);
     });
   });
 

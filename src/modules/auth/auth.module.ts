@@ -10,6 +10,7 @@ import { LogoutService } from './services/logout.service';
 import { PasswordService } from './services/password.service';
 import { RefreshService } from './services/refresh.service';
 import { RegisterService } from './services/register.service';
+import { VerifyEmailService } from './services/verify-email.service';
 
 @Module({
   controllers: [AuthController],
@@ -23,6 +24,7 @@ import { RegisterService } from './services/register.service';
     LoginService,
     RefreshService,
     LogoutService,
+    VerifyEmailService,
   ],
   exports: [
     PasswordService,

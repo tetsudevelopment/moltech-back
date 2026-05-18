@@ -15,10 +15,12 @@ import { type LoginDto, LoginSchema } from '../dtos/login.dto';
 import { type LogoutDto, LogoutSchema } from '../dtos/logout.dto';
 import { type RefreshDto, RefreshSchema } from '../dtos/refresh.dto';
 import { type RegisterDto, RegisterSchema } from '../dtos/register.dto';
+import { type VerifyEmailDto, VerifyEmailSchema } from '../dtos/verify-email.dto';
 import { LoginService } from '../services/login.service';
 import { LogoutService } from '../services/logout.service';
 import { RefreshService } from '../services/refresh.service';
 import { EmailAlreadyExistsError, RegisterService } from '../services/register.service';
+import { VerifyEmailService } from '../services/verify-email.service';
 
 @Controller('auth')
 export class AuthController {
@@ -27,6 +29,7 @@ export class AuthController {
     private readonly loginService: LoginService,
     private readonly refreshService: RefreshService,
     private readonly logoutService: LogoutService,
+    private readonly verifyEmailService: VerifyEmailService,
   ) {}
 
   @Post('register')
@@ -127,6 +130,43 @@ export class AuthController {
       access_token: result.accessToken,
       refresh_token: result.refreshToken,
       expires_in: 900, // F3 follow-up: derive from JWT_ACCESS_TTL
+    };
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(
+    @Body(new ZodValidationPipe(VerifyEmailSchema)) dto: VerifyEmailDto,
+    @Req() req: Request & { id?: string },
+  ): Promise<{
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    user: {
+      id: string;
+      email: string | null;
+      first_name: string;
+      last_name: string;
+      status: string;
+      email_verified: boolean;
+    };
+  }> {
+    const result = await this.verifyEmailService.verify(dto, {
+      requestId: req.id,
+      ip: req.ip,
+    });
+    return {
+      access_token: result.accessToken,
+      refresh_token: result.refreshToken,
+      expires_in: 900,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        first_name: result.user.firstName,
+        last_name: result.user.lastName,
+        status: result.user.status,
+        email_verified: result.user.emailVerified,
+      },
     };
   }
 
