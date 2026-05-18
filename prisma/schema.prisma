@@ -308,6 +308,7 @@ enum user_status_enum {
   active
   suspended
   inactive
+  pending_verification
 }
 
 enum verification_token_type_enum {
