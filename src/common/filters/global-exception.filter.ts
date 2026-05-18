@@ -26,6 +26,31 @@ const HTTP_STATUS_TO_CODE: Record<number, string> = {
   429: 'TOO_MANY_REQUESTS',
 };
 
+interface CustomPayload {
+  code?: string;
+  message?: string;
+  details?: unknown;
+}
+
+function readCustomPayload(exception: HttpException): CustomPayload {
+  const response = exception.getResponse();
+  if (typeof response !== 'object') {
+    return {};
+  }
+  const record = response as Record<string, unknown>;
+  const payload: CustomPayload = {};
+  if (typeof record.code === 'string') {
+    payload.code = record.code;
+  }
+  if (typeof record.message === 'string') {
+    payload.message = record.message;
+  }
+  if ('details' in record) {
+    payload.details = record.details;
+  }
+  return payload;
+}
+
 @Injectable()
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -55,23 +80,31 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.warn({ requestId, code, details }, 'Validation error');
     } else if (exception instanceof UnauthorizedException) {
       statusCode = HttpStatus.UNAUTHORIZED;
-      code = 'UNAUTHORIZED';
-      message = exception.message || 'Unauthorized';
+      const custom = readCustomPayload(exception);
+      code = custom.code ?? 'UNAUTHORIZED';
+      message = custom.message ?? (exception.message || 'Unauthorized');
+      details = custom.details;
       this.logger.warn({ requestId, code }, 'Unauthorized request');
     } else if (exception instanceof ForbiddenException) {
       statusCode = HttpStatus.FORBIDDEN;
-      code = 'FORBIDDEN';
-      message = exception.message || 'Forbidden';
+      const custom = readCustomPayload(exception);
+      code = custom.code ?? 'FORBIDDEN';
+      message = custom.message ?? (exception.message || 'Forbidden');
+      details = custom.details;
       this.logger.warn({ requestId, code }, 'Forbidden request');
     } else if (exception instanceof NotFoundException) {
       statusCode = HttpStatus.NOT_FOUND;
-      code = 'NOT_FOUND';
-      message = exception.message || 'Resource not found';
+      const custom = readCustomPayload(exception);
+      code = custom.code ?? 'NOT_FOUND';
+      message = custom.message ?? (exception.message || 'Resource not found');
+      details = custom.details;
       this.logger.warn({ requestId, code }, 'Not found');
     } else if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
-      code = HTTP_STATUS_TO_CODE[statusCode] ?? `HTTP_${String(statusCode)}`;
-      message = exception.message;
+      const custom = readCustomPayload(exception);
+      code = custom.code ?? HTTP_STATUS_TO_CODE[statusCode] ?? `HTTP_${String(statusCode)}`;
+      message = custom.message ?? exception.message;
+      details = custom.details;
       this.logger.warn({ requestId, code, statusCode }, 'HTTP exception');
     } else {
       statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
