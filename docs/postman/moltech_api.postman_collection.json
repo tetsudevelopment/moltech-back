@@ -1,58 +1,36 @@
 {
   "info": {
-    "_postman_id": "moltech-api-v1-2026-05-18",
+    "_postman_id": "moltech-api-v2-2026-05-18",
     "name": "MOLTECH API",
-    "description": "Backend MOLTECH — NestJS 11 + Prisma 6 + Postgres 16 + Redis 7.\n\nEndpoints implementados al 2026-05-18: Health (live, ready) + Auth (register, login, refresh, logout).\n\n## Variables de colección\n- `baseUrl`: URL del API. Default `http://localhost:3000/api/v1`. Cambiar si usás otro puerto.\n- `accessToken`: se setea automáticamente desde el response de /auth/login y /auth/refresh.\n- `refreshToken`: se setea automáticamente desde el response de /auth/login y /auth/refresh.\n- `userId`: se setea automáticamente desde el response de /auth/register o /auth/login.\n- `testEmail` / `testPassword`: credenciales del usuario de prueba.\n\n## Flujo recomendado de prueba\n1. **Health → GET /health/live** → 200 `{\"status\":\"ok\"}`\n2. **Health → GET /health/ready** → 200 con `{db:ok, redis:ok}`\n3. **Auth → POST /auth/register** → 201, crea usuario, guarda `userId`\n4. **Auth → POST /auth/login** → 200, devuelve tokens, los guarda en `accessToken`/`refreshToken`\n5. **Auth → POST /auth/refresh** → 200, rota tokens (los reemplaza en variables)\n6. **Auth → POST /auth/logout** → 204, revoca la familia\n7. **Auth → POST /auth/refresh** (con el viejo `refreshToken`) → 401 **REUSE DETECTED** (la familia entera quedó revocada)\n\n## Notas importantes\n- Todos los responses (excepto health) usan el envelope `{data, meta:{request_id, timestamp}, error}`.\n- Health endpoints NO usan el envelope (compatibilidad con k8s probes).\n- Logout es permisivo: token inválido o expirado igual devuelve 204.",
+    "description": "Backend MOLTECH — NestJS 11 + Prisma 6 + Postgres 16 + Redis 7.\n\n## Endpoints implementados al 2026-05-18 (post F3 + F4 parcial)\n\n**Health** (públicos, sin envelope)\n- GET /health/live\n- GET /health/ready\n\n**Auth** (públicos)\n- POST /auth/register\n- POST /auth/verify-email\n- POST /auth/resend-verification\n- POST /auth/login\n- POST /auth/refresh\n- POST /auth/logout\n- POST /auth/forgot-password\n- POST /auth/reset-password\n- POST /auth/social-login\n\n**Users** (Bearer token requerido)\n- GET /users/me\n- PATCH /users/me\n\n**Stations** (Bearer token requerido)\n- GET /stations\n- GET /stations/:id\n\n**Rentals** (Bearer token requerido)\n- POST /rentals (Idempotency-Key header sugerido)\n- POST /rentals/:id/finalize\n\n## Variables de colección\n- `baseUrl`: URL del API. Default `http://localhost:3000/api/v1`.\n- `accessToken`, `refreshToken`: se setean automáticamente desde login/verify-email/refresh/social-login.\n- `userId`: se setea desde register/login/verify-email/social-login.\n- `verificationCode` / `resetCode`: pegar manualmente desde el email recibido.\n- `stationId`, `powerBankId`, `paymentMethodId`: setear manualmente o desde scripts.\n- `rentalId`: se setea desde POST /rentals.\n- `testEmail` / `testPassword`: credenciales del usuario de prueba.\n\n## Flujo recomendado (golden path post F3+F4)\n1. Health → /health/live, /health/ready (sanity)\n2. Auth → POST /auth/register → 201 `{ user, verification_required: true }`\n3. (Buscar el código en `verification_tokens` o en el email Resend recibido)\n4. Auth → POST /auth/verify-email (con `{ email, code }`) → 200 con tokens\n5. Users → GET /users/me → 200 perfil completo\n6. Users → PATCH /users/me → 200 perfil actualizado\n7. Stations → GET /stations → 200 array paginado\n8. Stations → GET /stations/:id → 200 con `available_power_banks`\n9. (Crear un payment_method directamente en DB si no hay endpoint todavía)\n10. Rentals → POST /rentals → 201 `{ rental }` con `qr_return`\n11. Rentals → POST /rentals/:id/finalize → 200 con `final_cost` y `penalty`\n\n## Flujos secundarios\n- **Login bloqueado por verificación**: register sin verify → POST /auth/login → 401 `USER_NOT_VERIFIED`.\n- **Reset password**: POST /auth/forgot-password → 200 null → POST /auth/reset-password con `{ email, token, new_password }`.\n- **Refresh reuse**: POST /auth/refresh dos veces seguidas (segunda falla 401 + revoca familia entera).\n- **Social login**: POST /auth/social-login con `{ provider, id_token }` (necesita token real de Google/FB para probar end-to-end).\n\n## Envelope común\n```json\n{ \"data\": <T> | null, \"meta\": { \"request_id\": \"...\", \"timestamp\": \"...\" }, \"error\": null | { \"code\": \"...\", \"message\": \"...\", \"details\": ... } }\n```\nHealth endpoints son la excepción (k8s probes esperan JSON simple).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:3000/api/v1",
-      "type": "string"
-    },
-    {
-      "key": "accessToken",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "refreshToken",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "userId",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "testEmail",
-      "value": "smoke@test.com",
-      "type": "string"
-    },
-    {
-      "key": "testPassword",
-      "value": "SmokeTest1",
-      "type": "string"
-    }
+    { "key": "baseUrl", "value": "http://localhost:3000/api/v1", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "verificationCode", "value": "", "type": "string" },
+    { "key": "resetCode", "value": "", "type": "string" },
+    { "key": "stationId", "value": "", "type": "string" },
+    { "key": "powerBankId", "value": "", "type": "string" },
+    { "key": "paymentMethodId", "value": "", "type": "string" },
+    { "key": "rentalId", "value": "", "type": "string" },
+    { "key": "testEmail", "value": "smoke@test.com", "type": "string" },
+    { "key": "testPassword", "value": "SmokeTest1", "type": "string" }
   ],
   "item": [
     {
       "name": "Health",
-      "description": "Endpoints públicos para liveness y readiness probes (k8s/load balancers).",
+      "description": "Endpoints públicos para liveness y readiness probes (k8s/load balancers). NO usan envelope.",
       "item": [
         {
           "name": "GET /health/live",
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/health/live",
-              "host": ["{{baseUrl}}"],
-              "path": ["health", "live"]
-            },
-            "description": "Liveness probe. SIEMPRE retorna 200 si el proceso está vivo.\n\n**No usa envelope** (k8s espera JSON simple).\n\n**Success 200**:\n```json\n{ \"status\": \"ok\" }\n```\n\n**Errores**: ninguno esperable salvo que el proceso esté caído (no responde → timeout en el cliente)."
+            "url": { "raw": "{{baseUrl}}/health/live", "host": ["{{baseUrl}}"], "path": ["health", "live"] },
+            "description": "Liveness probe. SIEMPRE retorna 200 si el proceso está vivo.\n\n**Success 200**:\n```json\n{ \"status\": \"ok\" }\n```"
           }
         },
         {
@@ -60,19 +38,15 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/health/ready",
-              "host": ["{{baseUrl}}"],
-              "path": ["health", "ready"]
-            },
-            "description": "Readiness probe. Verifica que las dependencias (DB + Redis) responden.\n\n**No usa envelope**.\n\n**Success 200**:\n```json\n{ \"status\": \"ready\", \"checks\": { \"db\": \"ok\", \"redis\": \"ok\" } }\n```\n\n**Error 503**:\n```json\n{ \"status\": \"not_ready\", \"checks\": { \"db\": \"fail\", \"redis\": \"ok\" } }\n```\n(o cualquier combinación con `fail`)"
+            "url": { "raw": "{{baseUrl}}/health/ready", "host": ["{{baseUrl}}"], "path": ["health", "ready"] },
+            "description": "Readiness probe. Verifica que las dependencias (DB + Redis) responden.\n\n**Success 200**:\n```json\n{ \"status\": \"ready\", \"checks\": { \"db\": \"ok\", \"redis\": \"ok\" } }\n```\n\n**Error 503** si alguna falla."
           }
         }
       ]
     },
     {
       "name": "Auth",
-      "description": "Endpoints de autenticación: register, login, refresh, logout. Todos públicos (sin Bearer token).",
+      "description": "Endpoints de autenticación: register, verify-email, resend-verification, login, refresh, logout, forgot-password, reset-password, social-login. Todos públicos (sin Bearer token).",
       "item": [
         {
           "name": "POST /auth/register",
@@ -85,9 +59,9 @@
                   "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
                   "try {",
                   "  const r = pm.response.json();",
-                  "  if (r.data && r.data.user_id) {",
-                  "    pm.collectionVariables.set('userId', r.data.user_id);",
-                  "    console.log('Saved userId:', r.data.user_id);",
+                  "  if (r.data && r.data.user && r.data.user.id) {",
+                  "    pm.collectionVariables.set('userId', r.data.user.id);",
+                  "    console.log('Saved userId:', r.data.user.id);",
                   "  }",
                   "} catch (e) {}"
                 ]
@@ -96,20 +70,62 @@
           ],
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\",\n  \"first_name\": \"Smoke\",\n  \"last_name\": \"Test\",\n  \"phone\": \"+573001234567\",\n  \"accepted_policy\": true\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": {
-              "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "description": "Crea una cuenta nueva con email + password. El usuario queda en `status: pending_verification`, `email_verified: false`. **No emite tokens** — el cliente debe completar `/auth/verify-email` para hacer el primer login.\n\n## Validaciones (Zod)\n- `email`: formato válido, max 254 chars (lowercase normalizado server-side)\n- `password`: min 8 / max 128 chars, ≥1 mayúscula, ≥1 minúscula, ≥1 número\n- `first_name` / `last_name`: trim, 1-100 chars\n- `phone`: opcional, formato `^\\+?[0-9]{7,15}$`\n- `accepted_policy`: **literal `true`**\n\n## Success 201\n```json\n{\n  \"data\": {\n    \"user\": {\n      \"id\": \"uuid-v4\",\n      \"email\": \"smoke@test.com\",\n      \"first_name\": \"Smoke\",\n      \"last_name\": \"Test\",\n      \"phone\": \"+573001234567\",\n      \"email_verified\": false,\n      \"auth_provider\": \"email\",\n      \"status\": \"pending_verification\",\n      \"created_at\": \"...\"\n    },\n    \"verification_required\": true\n  },\n  \"meta\": {...},\n  \"error\": null\n}\n```\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | Cualquier validación Zod falla |\n| 409 | EMAIL_ALREADY_REGISTERED | Email ya registrado |\n\n## Side effects\n- Password hasheado con Argon2id.\n- Crea row en `verification_tokens` (type=email, código de 6 dígitos, TTL=EMAIL_VERIFICATION_CODE_TTL_MIN).\n- Envía email via Resend con el código (en dev, ver logs del servidor).\n- Emite audit `auth.register`."
+          }
+        },
+        {
+          "name": "POST /auth/verify-email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "try {",
+                  "  const r = pm.response.json();",
+                  "  if (r.data) {",
+                  "    pm.collectionVariables.set('accessToken', r.data.access_token);",
+                  "    pm.collectionVariables.set('refreshToken', r.data.refresh_token);",
+                  "    if (r.data.user) pm.collectionVariables.set('userId', r.data.user.id);",
+                  "    console.log('Verified + tokens saved');",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"code\": \"{{verificationCode}}\"\n}",
+              "options": { "raw": { "language": "json" } }
             },
-            "description": "Crea una cuenta nueva con email + password.\n\n## Request body\n```json\n{\n  \"email\": \"user@example.com\",\n  \"password\": \"ValidPass1\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"phone\": \"+573001234567\",\n  \"accepted_policy\": true\n}\n```\n\n## Validaciones (Zod)\n- `email`: formato válido, max 254 chars (lowercase normalizado server-side)\n- `password`: min 8 / max 128 chars, ≥1 mayúscula, ≥1 minúscula, ≥1 número\n- `first_name`: trim, 1-100 chars\n- `last_name`: trim, 1-100 chars\n- `phone`: opcional, formato `^\\+?[0-9]{7,15}$`\n- `accepted_policy`: **literal `true`** (no acepta `false` ni `\"true\"`)\n\n## Success 201\n```json\n{\n  \"data\": { \"user_id\": \"uuid-v4\" },\n  \"meta\": {\n    \"request_id\": \"uuid-v4\",\n    \"timestamp\": \"2026-05-18T02:08:21.829Z\"\n  },\n  \"error\": null\n}\n```\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | Cualquier validación Zod falla. `error.details` lista cada campo. |\n| 409 | CONFLICT | Email ya registrado. |\n| 500 | INTERNAL_ERROR | Falla inesperada de DB u otro. No leakea stack. |\n\n## Side effects\n- Password se hashea con Argon2id antes de persistir.\n- Emite audit event `auth.register` (actor = user.id, sin email en metadata)."
+            "url": { "raw": "{{baseUrl}}/auth/verify-email", "host": ["{{baseUrl}}"], "path": ["auth", "verify-email"] },
+            "description": "Verifica el email con el código de 6 dígitos. **Emite los primeros tokens** (primer login efectivo). Setea `email_verified=true`, `status=active`.\n\n## Pre-requisito\nPegar el código en la variable de colección `verificationCode` (lo recibís en el email Resend o se ve en la tabla `verification_tokens` en DB).\n\n## Validaciones (Zod)\n- `email`: formato válido\n- `code`: exactamente 6 dígitos (regex `^\\d{6}$`)\n\n## Success 200\n```json\n{\n  \"data\": {\n    \"access_token\": \"eyJ...\",\n    \"refresh_token\": \"eyJ...\",\n    \"expires_in\": 900,\n    \"user\": {\n      \"id\": \"uuid\",\n      \"email\": \"smoke@test.com\",\n      \"first_name\": \"Smoke\",\n      \"last_name\": \"Test\",\n      \"status\": \"active\",\n      \"email_verified\": true\n    }\n  }\n}\n```\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | code no es 6 dígitos / email inválido |\n| 400 | TOKEN_INVALID | Email no registrado, código incorrecto, o código expirado/usado (mismo error para evitar enum leak) |\n\n## Side effects\n- Marca `verification_tokens.used=true`.\n- Update users: `email_verified=true`, `status='active'`.\n- Crea refresh family en Redis.\n- Audit `auth.email.verified`."
+          }
+        },
+        {
+          "name": "POST /auth/resend-verification",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/resend-verification", "host": ["{{baseUrl}}"], "path": ["auth", "resend-verification"] },
+            "description": "Reenvía el código de verificación. **Siempre devuelve 200 null envelope** (anti-enumeración). Hay tres caminos silenciosos:\n1. Email no registrado → silent.\n2. Usuario ya verificado → silent.\n3. Último código emitido hace <60s → silent (rate limit por email).\n\nSi pasa los 3 checks: invalida tokens activos, genera código nuevo, manda email.\n\n## Validaciones\n- `email`: formato válido\n\n## Success 200 (siempre)\n```json\n{ \"data\": null, \"meta\": {...}, \"error\": null }\n```\n\n## Side effects (si proceed)\n- Invalida tokens email activos del usuario.\n- Crea nuevo `verification_tokens`.\n- Envía email Resend.\n\n## Rate limits\n- 1/min por email (interno via timestamp del último token).\n- 100/min por IP (global throttler)."
           }
         },
         {
@@ -136,20 +152,14 @@
           ],
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
-            },
-            "description": "Login con email + password.\n\n## Request body\n```json\n{\n  \"email\": \"user@example.com\",\n  \"password\": \"ValidPass1\"\n}\n```\n\n## Validaciones (Zod)\n- `email`: formato válido\n- `password`: min 1 / max 128 chars (la fortaleza ya se validó en register)\n\n## Success 200\n```json\n{\n  \"data\": {\n    \"access_token\": \"eyJ...\",   // JWT RS256, TTL=15m\n    \"refresh_token\": \"eyJ...\",  // JWT RS256, TTL=30d, contiene familyId+tokenId\n    \"expires_in\": 900,           // segundos\n    \"user\": {\n      \"id\": \"uuid-v4\",\n      \"email\": \"user@example.com\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"status\": \"active\"\n    }\n  },\n  \"meta\": { \"request_id\": \"...\", \"timestamp\": \"...\" },\n  \"error\": null\n}\n```\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | Email malformado o password vacío. |\n| 401 | UNAUTHORIZED | Credenciales inválidas (user not found O password incorrecta — mismo mensaje, intencional). |\n| 401 | UNAUTHORIZED | Cuenta suspendida (`status: \"suspended\"`). |\n| 401 | UNAUTHORIZED | Cuenta inactiva (`status: \"inactive\"`). |\n| 401 | UNAUTHORIZED | Usuario social-only sin password (auth_provider != email). |\n\n## Side effects (audit events)\n- `auth.login.success` (actor = user.id)\n- O `auth.login.failure` con `metadata.reason`:\n  - `user_not_found` (actor='anonymous', sin email en metadata)\n  - `invalid_password` (actor=user.id)\n  - `account_suspended` (actor=user.id)\n  - `account_inactive` (actor=user.id)\n  - `no_password_set` (actor=user.id)\n\n## Side effects (Redis)\n- En login exitoso se crea una `refresh_family` en Redis (key `auth:refresh:family:{familyId}`, TTL=30d)."
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Login con email + password. **Requiere `email_verified=true`** — usuarios sin verificar reciben 401 `USER_NOT_VERIFIED`.\n\n## Success 200\n```json\n{\n  \"data\": {\n    \"access_token\": \"eyJ...\",\n    \"refresh_token\": \"eyJ...\",\n    \"expires_in\": 900,\n    \"user\": { \"id\": \"...\", \"email\": \"...\", \"first_name\": \"...\", \"last_name\": \"...\", \"status\": \"active\" }\n  }\n}\n```\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | Email malformado o password vacío |\n| 401 | UNAUTHORIZED | Credenciales inválidas (user not found O password incorrecta — mismo mensaje, intencional) |\n| 401 | UNAUTHORIZED | Cuenta suspendida o inactiva |\n| 401 | **USER_NOT_VERIFIED** | `email_verified=false`. Cliente debe llamar `/auth/verify-email` o `/auth/resend-verification` |\n\n## Side effects (audit)\n- `auth.login.success` (actor=user.id)\n- `auth.login.failure` con `metadata.reason`: `user_not_found` | `invalid_password` | `account_suspended` | `account_inactive` | `user_not_verified` | `no_password_set`"
           }
         },
         {
@@ -175,60 +185,233 @@
           ],
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": {
-              "raw": "{{baseUrl}}/auth/refresh",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "refresh"]
-            },
-            "description": "Rotar el refresh token. Si el token presentado YA FUE ROTADO antes (o la familia no existe), se considera REUSO y la familia se revoca.\n\n## Request body\n```json\n{\n  \"refresh_token\": \"eyJ...\"\n}\n```\n\n## Validaciones\n- `refresh_token`: string min 1 char\n\n## Success 200 (rotation OK)\n```json\n{\n  \"data\": {\n    \"access_token\": \"eyJ...\",\n    \"refresh_token\": \"eyJ...\",  // NUEVO token con mismo familyId, nuevo tokenId\n    \"expires_in\": 900\n  },\n  \"meta\": {...},\n  \"error\": null\n}\n```\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | refresh_token vacío. |\n| 401 | UNAUTHORIZED | Token inválido (firma manipulada, expirado, mal formado). |\n| 401 | UNAUTHORIZED | `\"Refresh token reuse detected\"` — REUSE DETECTED: el tokenId no coincide con el actual en la familia, O la familia ya no existe. **Familia revocada por completo.** |\n\n## Side effects\n- Si OK: actualiza `currentTokenId` de la familia en Redis.\n- Si REUSE: `revokeFamily()` en Redis + audit `auth.refresh.reused` (severity alta).\n- Si OK: audit `auth.refresh.rotated`."
+            "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] },
+            "description": "Rotar el refresh token. Si el token presentado YA FUE ROTADO antes, REUSE DETECTED → revoca toda la familia.\n\n## Success 200\n```json\n{ \"data\": { \"access_token\": \"...\", \"refresh_token\": \"...\", \"expires_in\": 900 } }\n```\n\n## Errores\n- 400 VALIDATION_ERROR (token vacío)\n- 401 UNAUTHORIZED (token inválido/expirado)\n- 401 UNAUTHORIZED `\"Refresh token reuse detected\"` (reuso → familia revocada)"
           }
         },
         {
           "name": "POST /auth/logout",
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": {
-              "raw": "{{baseUrl}}/auth/logout",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "logout"]
-            },
-            "description": "Logout: revoca la familia de refresh tokens. **Permisivo** — si el token es inválido o expirado, igual devuelve 204 (porque el token ya es inútil).\n\n## Request body\n```json\n{\n  \"refresh_token\": \"eyJ...\"\n}\n```\n\n## Validaciones\n- `refresh_token`: string min 1 char\n\n## Success 204 No Content\nSin body. El cliente debe descartar localmente los tokens (Postman no los borra automáticamente — agregar `pm.collectionVariables.unset('accessToken')` en un test script si querés que se borren).\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | refresh_token vacío (Zod). |\n\n(Nota: tokens inválidos/expirados NO devuelven 401 — devuelven 204 igual.)\n\n## Side effects\n- Si token válido: `revokeFamily()` en Redis + audit `auth.logout` (actor=sub).\n- Si token inválido: nada (log debug interno, no audit)."
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] },
+            "description": "Logout permisivo: revoca la familia de refresh tokens. Token inválido/expirado igual devuelve 204.\n\n## Success 204 No Content (siempre, salvo body vacío)\n\n## Errores\n- 400 VALIDATION_ERROR si `refresh_token` falta o es vacío."
           }
         },
         {
-          "name": "POST /auth/refresh (REUSE TEST — debe fallar 401)",
+          "name": "POST /auth/forgot-password",
           "request": {
             "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["auth", "forgot-password"] },
+            "description": "Inicia flujo de reset de contraseña. **Siempre devuelve 200 null envelope** (anti-enumeración). Silent en:\n- Email no registrado.\n- Usuario suspended/inactive.\n- Último token reset_password < 60s.\n\nSi proceed: invalida tokens reset_password activos, crea nuevo código 6 dígitos, manda email.\n\n## Success 200 (siempre)\n```json\n{ \"data\": null }\n```\n\n## Side effects\n- Crea `verification_tokens` con type=reset_password.\n- Envía email Resend con sender `password reset` subject.\n- Audit `auth.password.reset.requested` (solo si proceed)."
+          }
+        },
+        {
+          "name": "POST /auth/reset-password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"token\": \"{{resetCode}}\",\n  \"new_password\": \"NewSecure1\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["auth", "reset-password"] },
+            "description": "Consume el código de reset y actualiza la contraseña.\n\n**Deviation del spec original**: incluye `email` (porque el código es de 6 dígitos, scoped por usuario). El spec decía solo `{ token, newPassword }`, pero `verification_tokens.token` es VARCHAR(10) y los códigos colisionarían sin scope.\n\n## Pre-requisito\nPegar el código en la variable `resetCode`.\n\n## Validaciones\n- `email`: formato válido\n- `token`: 6 dígitos\n- `new_password`: min 8 / max 128, ≥1 mayúscula, ≥1 minúscula, ≥1 número\n\n## Success 200\n```json\n{ \"data\": null }\n```\n\n## Errores\n- 400 VALIDATION_ERROR\n- 400 TOKEN_INVALID (user no existe, código incorrecto, expirado o usado)\n\n## Side effects\n- Hashea new_password con Argon2id, update users.password_hash.\n- markUsed(token) + invalidateActive(reset_password tokens del user).\n- Audit `auth.password.reset.completed`.\n- **Pendiente**: revocación de refresh families al hacer reset (no implementado todavía)."
+          }
+        },
+        {
+          "name": "POST /auth/social-login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "try {",
+                  "  const r = pm.response.json();",
+                  "  if (r.data) {",
+                  "    pm.collectionVariables.set('accessToken', r.data.access_token);",
+                  "    pm.collectionVariables.set('refreshToken', r.data.refresh_token);",
+                  "    if (r.data.user) pm.collectionVariables.set('userId', r.data.user.id);",
+                  "    console.log('Social login. is_new_user:', r.data.is_new_user);",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"google\",\n  \"id_token\": \"<paste real google ID token here>\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/social-login", "host": ["{{baseUrl}}"], "path": ["auth", "social-login"] },
+            "description": "Login con Google o Facebook.\n\n**Deviation del spec**: el spec original decía `idToken` (camelCase). Acá uso `id_token` por consistencia con el resto del API. Para Facebook, este campo lleva el **user access token** (no un ID token).\n\n## Validaciones\n- `provider`: enum `google` | `facebook`\n- `id_token`: string min 1 char\n\n## Provider verification\n- **Google**: jose JWKS de googleapis.com, audience match con `GOOGLE_OAUTH_CLIENT_ID_ANDROID`/`_IOS`, issuer=accounts.google.com, requiere `email_verified=true` en el payload.\n- **Facebook**: 2-step. `GET graph.facebook.com/debug_token` para validar (is_valid + app_id) + `GET /me?fields=id,email,first_name,last_name`.\n\n## Success 200\n```json\n{\n  \"data\": {\n    \"access_token\": \"eyJ...\",\n    \"refresh_token\": \"eyJ...\",\n    \"expires_in\": 900,\n    \"is_new_user\": true,\n    \"user\": {\n      \"id\": \"...\",\n      \"email\": \"user@gmail.com\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Google\",\n      \"auth_provider\": \"google\",\n      \"email_verified\": true,\n      \"status\": \"active\"\n    }\n  }\n}\n```\n\n## Errores\n- 400 VALIDATION_ERROR (provider inválido o id_token vacío)\n- 400 TOKEN_INVALID (firma inválida, expirado, email no verificado en Google, debug_token fail en Facebook)\n- 409 EMAIL_ALREADY_EXISTS con `details: { requiresMerge: true, currentProvider: 'email' }` (email ya registrado con auth_provider diferente)\n\n## Side effects\n- Si user existe por (provider, providerId): login normal.\n- Si no existe: crea row con `email_verified=true`, `status=active`, `auth_provider=<provider>`, `auth_provider_id=<sub/user_id>`.\n- Audit `auth.login.success` con metadata `{ provider, isNewUser }`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "Endpoints self-service del usuario autenticado. Todos requieren `Authorization: Bearer <accessToken>`.",
+      "item": [
+        {
+          "name": "GET /users/me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/users/me", "host": ["{{baseUrl}}"], "path": ["users", "me"] },
+            "description": "Devuelve el perfil del usuario autenticado.\n\n## Success 200\n```json\n{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"first_name\": \"Smoke\",\n    \"last_name\": \"Test\",\n    \"email\": \"smoke@test.com\",\n    \"phone\": \"+573001234567\",\n    \"country\": null,\n    \"city\": null,\n    \"address\": null,\n    \"photo_url\": null,\n    \"email_verified\": true,\n    \"phone_verified\": false,\n    \"auth_provider\": \"email\",\n    \"status\": \"active\",\n    \"created_at\": \"...\"\n  }\n}\n```\n\n## Errores\n- 401 UNAUTHORIZED (header Authorization falta o token inválido)\n- 404 USER_NOT_FOUND (el user fue borrado mid-session)"
+          }
+        },
+        {
+          "name": "PATCH /users/me",
+          "request": {
+            "method": "PATCH",
             "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "raw": "{\n  \"first_name\": \"Smoke Updated\",\n  \"city\": \"Medellín\"\n}",
               "options": { "raw": { "language": "json" } }
             },
+            "url": { "raw": "{{baseUrl}}/users/me", "host": ["{{baseUrl}}"], "path": ["users", "me"] },
+            "description": "Actualiza campos del perfil. Body es un partial — solo los campos enviados se actualizan.\n\n## Campos modificables\n- `first_name`, `last_name`: 1-100 chars\n- `phone`: regex `^\\+?[0-9]{7,15}$`\n- `country`, `city`: 1-80 chars\n- `address`: 1-200 chars\n- `photo_url`: URL válida, max 300 chars\n\n## Campos NO modificables (devuelven VALIDATION_ERROR)\n- `email` (requiere flujo aparte con verificación)\n- `password` (requiere /auth/change-password — pendiente)\n- `status` (admin only)\n\n## Validación\n- Al menos 1 campo debe estar presente. Body vacío → 400 VALIDATION_ERROR.\n\n## Success 200\nMismo shape que GET /users/me con los campos nuevos.\n\n## Errores\n- 401 UNAUTHORIZED\n- 400 VALIDATION_ERROR\n- 404 USER_NOT_FOUND"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Stations",
+      "description": "Catálogo de estaciones. Todos los endpoints requieren autenticación.",
+      "item": [
+        {
+          "name": "GET /stations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "try {",
+                  "  const r = pm.response.json();",
+                  "  if (r.data && r.data.length > 0) {",
+                  "    pm.collectionVariables.set('stationId', r.data[0].id);",
+                  "    console.log('Saved stationId:', r.data[0].id);",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": {
-              "raw": "{{baseUrl}}/auth/refresh",
+              "raw": "{{baseUrl}}/stations?page=1&page_size=20",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "refresh"]
+              "path": ["stations"],
+              "query": [
+                { "key": "city", "value": "", "disabled": true, "description": "Filtro por ciudad (exacto)" },
+                { "key": "status", "value": "online", "disabled": true, "description": "Filtro: online | offline | maintenance" },
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "20", "description": "Max 100" }
+              ]
             },
-            "description": "**Endpoint duplicado a propósito para demostrar reuse detection.**\n\nUsalo después de: login → refresh (1ra vez) → refresh (2da vez, debería fallar porque ya rotaste).\n\nO: login → logout → refresh (debería fallar porque la familia está revocada).\n\n## Expected: 401\n```json\n{\n  \"data\": null,\n  \"meta\": {...},\n  \"error\": {\n    \"code\": \"UNAUTHORIZED\",\n    \"message\": \"Refresh token reuse detected\"\n  }\n}\n```\n\nLa familia entera quedó revocada — cualquier intento futuro con cualquier token de esa familia también falla."
+            "description": "Lista paginada de estaciones.\n\n## Query params\n- `city`: filtro exacto (opcional)\n- `status`: enum `online` | `offline` | `maintenance` (opcional)\n- `page`: int positivo, default 1\n- `page_size`: int positivo max 100, default 20\n\n## Pendiente (no implementado todavía)\n- `latitude`, `longitude`, `radius_km` (geo-search) → diferido\n- `available=true` (solo estaciones con power banks disponibles) → diferido\n\n## Success 200\n```json\n{\n  \"data\": [\n    {\n      \"id\": \"...\",\n      \"name\": \"Station Centro\",\n      \"city\": \"Bogotá\",\n      \"zone\": \"Centro\",\n      \"address\": \"Cra 7 #...\",\n      \"latitude\": \"4.7110000\",\n      \"longitude\": \"-74.0721000\",\n      \"hourly_rate\": \"5000.00\",\n      \"currency\": \"COP\",\n      \"total_capacity\": 10,\n      \"status\": \"online\",\n      \"description\": null,\n      \"opening_time\": null,\n      \"closing_time\": null,\n      \"created_at\": \"...\"\n    }\n  ],\n  \"meta\": {\n    \"pagination\": { \"page\": 1, \"pageSize\": 20, \"total\": 5, \"totalPages\": 1, \"hasNext\": false, \"hasPrevious\": false }\n  },\n  \"error\": null\n}\n```\n\n## Errores\n- 400 VALIDATION_ERROR (status inválido, page no numérico, page_size > 100)\n- 401 UNAUTHORIZED"
+          }
+        },
+        {
+          "name": "GET /stations/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["stations", "{{stationId}}"]
+            },
+            "description": "Detalle de una estación. Incluye `available_power_banks` (count en tiempo real).\n\n## Success 200\nMismo shape que un item del list + `available_power_banks: number`.\n\n## Errores\n- 400 VALIDATION_ERROR (id no es UUID)\n- 401 UNAUTHORIZED\n- 404 STATION_NOT_FOUND"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rentals",
+      "description": "Alquiler de power banks. Requieren autenticación. **MVP**: idempotencia aceptada via header pero no deduplica todavía (interceptor llega en F5b).",
+      "item": [
+        {
+          "name": "POST /rentals (start)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "try {",
+                  "  const r = pm.response.json();",
+                  "  if (r.data && r.data.rental && r.data.rental.id) {",
+                  "    pm.collectionVariables.set('rentalId', r.data.rental.id);",
+                  "    console.log('Saved rentalId:', r.data.rental.id);",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}", "description": "UUID v4. Aceptado pero NO deduplicado todavía (F5b). Generado por Postman con {{$guid}}." }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickup_station_id\": \"{{stationId}}\",\n  \"power_bank_id\": \"{{powerBankId}}\",\n  \"payment_method_id\": \"{{paymentMethodId}}\",\n  \"estimated_duration_hours\": 3,\n  \"coupon_id\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/rentals", "host": ["{{baseUrl}}"], "path": ["rentals"] },
+            "description": "Inicia un alquiler. Carga al payment_method via MockPaymentGateway (cuando MOCK_GATEWAY_BEHAVIOR=always_success), bloquea el power_bank, crea la row de rental.\n\n## Pre-requisitos\n- `stationId`: setear con `GET /stations` o manualmente.\n- `powerBankId`: hoy no hay endpoint de listado. Buscalo en DB: `SELECT id FROM power_banks WHERE station_id=$1 AND status='available' LIMIT 1`.\n- `paymentMethodId`: hoy no hay endpoint para crear payment_methods. Insertalo manualmente en DB: `INSERT INTO payment_methods (id, user_id, type, cardholder_name, last_four_digits, expiry_month, expiry_year, gateway_token) VALUES (gen_random_uuid(), '<your-user-id>', 'visa', 'Test', '4242', 12, 2030, 'tok_test_visa');` y guarda el id.\n\n## Validaciones (Zod)\n- `pickup_station_id`, `power_bank_id`, `payment_method_id`: UUID\n- `estimated_duration_hours`: int 1-48\n- `coupon_id`: UUID nullable opcional\n\n## Success 201\n```json\n{\n  \"data\": {\n    \"rental\": {\n      \"id\": \"...\",\n      \"user_id\": \"...\",\n      \"power_bank_id\": \"...\",\n      \"pickup_station_id\": \"...\",\n      \"payment_method_id\": \"...\",\n      \"coupon_id\": null,\n      \"start_time\": \"...\",\n      \"end_time\": null,\n      \"estimated_duration_hours\": 3,\n      \"actual_duration_hours\": null,\n      \"hourly_rate\": \"5000.00\",\n      \"estimated_cost\": \"15000.00\",\n      \"final_cost\": null,\n      \"currency\": \"COP\",\n      \"discount_applied\": \"0.00\",\n      \"penalty\": \"0.00\",\n      \"status\": \"active\",\n      \"created_at\": \"...\",\n      \"qr_return\": \"moltech://rental/return?code=<rental-id>\"\n    }\n  }\n}\n```\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | UUIDs inválidos, estimated_duration > 48, etc. |\n| 400 | PAYMENT_METHOD_INACTIVE | Payment method status=expired/deleted |\n| 400 | POWER_BANK_STATION_MISMATCH | El power_bank.station_id no coincide con pickup_station_id |\n| 400 | PAYMENT_DECLINED | MockPaymentGateway o gateway real declinó el cobro |\n| 401 | UNAUTHORIZED | Token inválido |\n| 404 | PAYMENT_METHOD_NOT_FOUND | El payment_method no existe o no es del usuario |\n| 404 | POWER_BANK_NOT_FOUND | UUID inexistente |\n| 404 | STATION_NOT_FOUND | UUID inexistente |\n| 409 | POWER_BANK_UNAVAILABLE | Power bank ya está rented/charging/damaged/retired |\n| 409 | STATION_OFFLINE | Station no está online |\n\n## Side effects (success)\n- Cobra via MockPaymentGateway. Crea `payments` row (status=approved, transaction_id=mock_txn_uuid).\n- Marca `power_banks.status='rented'`.\n- Crea `rentals` row con status=active.\n- Audit `rental.started` con metadata `{ rentalId, powerBankId, stationId, gateway }`.\n\n## Side effects (PAYMENT_DECLINED)\n- NO escribe nada en DB.\n- Audit `payment.declined` con metadata `{ reason, gateway, transactionId }`."
+          }
+        },
+        {
+          "name": "POST /rentals/:id/finalize",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/rentals/{{rentalId}}/finalize",
+              "host": ["{{baseUrl}}"],
+              "path": ["rentals", "{{rentalId}}", "finalize"]
+            },
+            "description": "Finaliza el alquiler. Calcula duración real, costo final, penalty si excede estimado. Libera el power_bank.\n\n## Cálculo de costos\n- `actual_duration_hours = (now - start_time) / 3600000` (precisión 2 decimales)\n- `billable_hours = max(actual_duration_hours, 0.25)` — mínimo facturable 15 min\n- `final_cost = billable_hours × hourly_rate`\n- `penalty = max(final_cost - estimated_cost, 0)` — overage como penalty\n\n## Success 200\nMismo shape que el rental de start, ahora con `end_time`, `actual_duration_hours`, `final_cost`, `penalty`, `status: \"completed\"`.\n\n## Errores\n- 400 VALIDATION_ERROR (id no es UUID)\n- 401 UNAUTHORIZED\n- 403 RENTAL_NOT_OWNED (el rental existe pero pertenece a otro user)\n- 404 RENTAL_NOT_FOUND\n- 409 RENTAL_NOT_ACTIVE (ya está completed/cancelled/penalized)\n\n## Side effects\n- Update `rentals`: end_time, actual_duration, final_cost, penalty, status=completed.\n- Libera `power_banks.status='available'`.\n- Audit `rental.finalized` con metadata `{ rentalId, finalCost, penalty }`.\n\n## Pendiente\n- Cobro adicional por overage (penalty > 0). Hoy se persiste el penalty pero NO se cobra. Llega con F5b."
           }
         }
       ]
