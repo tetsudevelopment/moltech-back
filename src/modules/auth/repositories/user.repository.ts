@@ -65,6 +65,14 @@ export class UserRepository {
     return this.mapToDomain(row);
   }
 
+  async updatePasswordHash(userId: string, passwordHash: string): Promise<User> {
+    const row = await this.prisma.users.update({
+      where: { id: userId },
+      data: { password_hash: passwordHash },
+    });
+    return this.mapToDomain(row);
+  }
+
   private mapToDomain(row: {
     id: string;
     email: string | null;

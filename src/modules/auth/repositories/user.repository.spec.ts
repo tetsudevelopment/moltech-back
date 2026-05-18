@@ -227,4 +227,19 @@ describe('UserRepository', () => {
       expect(result.status).toBe('active');
     });
   });
+
+  describe('updatePasswordHash()', () => {
+    it('writes the new hash to the user row and returns the mapped User', async () => {
+      const updatedRow = makePrismaRow({ password_hash: '$argon2id$new$hash' });
+      mockUpdate.mockResolvedValue(updatedRow);
+
+      const result = await repo.updatePasswordHash('user-uuid-1', '$argon2id$new$hash');
+
+      expect(mockUpdate).toHaveBeenCalledWith({
+        where: { id: 'user-uuid-1' },
+        data: { password_hash: '$argon2id$new$hash' },
+      });
+      expect(result.passwordHash).toBe('$argon2id$new$hash');
+    });
+  });
 });

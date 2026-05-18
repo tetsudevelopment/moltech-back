@@ -154,4 +154,73 @@ describe('EmailService', () => {
       ).rejects.toThrow(EmailDeliveryError);
     });
   });
+
+  describe('sendPasswordResetCode', () => {
+    it('sends a password reset email with the configured from and recipient', async () => {
+      await service.sendPasswordResetCode({
+        to: 'user@example.com',
+        code: '654321',
+        firstName: 'John',
+      });
+
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from: 'no-reply@moltech.app',
+          to: 'user@example.com',
+        }),
+      );
+    });
+
+    it('uses a distinct subject from the verification email', async () => {
+      await service.sendPasswordResetCode({
+        to: 'user@example.com',
+        code: '654321',
+        firstName: 'John',
+      });
+
+      const payload = firstSentEmail();
+      expect(payload.subject).toContain('password reset');
+    });
+
+    it('includes the reset code and TTL in both text and html bodies', async () => {
+      await service.sendPasswordResetCode({
+        to: 'user@example.com',
+        code: '654321',
+        firstName: 'John',
+      });
+
+      const payload = firstSentEmail();
+      expect(payload.text).toContain('654321');
+      expect(payload.html).toContain('654321');
+      expect(payload.text).toContain('15');
+      expect(payload.html).toContain('15');
+    });
+
+    it('escapes HTML in firstName for the reset email too', async () => {
+      await service.sendPasswordResetCode({
+        to: 'user@example.com',
+        code: '654321',
+        firstName: '<img src=x onerror=1>',
+      });
+
+      const payload = firstSentEmail();
+      expect(payload.html).not.toContain('<img');
+      expect(payload.html).toContain('&lt;img');
+    });
+
+    it('throws EmailDeliveryError when Resend returns an error', async () => {
+      mockSend.mockResolvedValue({
+        data: null,
+        error: { message: 'API down', name: 'application_error' },
+      });
+
+      await expect(
+        service.sendPasswordResetCode({
+          to: 'user@example.com',
+          code: '654321',
+          firstName: 'John',
+        }),
+      ).rejects.toThrow(EmailDeliveryError);
+    });
+  });
 });
