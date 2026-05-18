@@ -17,6 +17,7 @@ import { AuditModule } from '@/modules/audit/audit.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { EmailModule } from '@/modules/email/email.module';
 import { HealthModule } from '@/modules/health/health.module';
+import { UsersModule } from '@/modules/users/users.module';
 
 const REDACTED_PATHS = [
   'password',
@@ -79,6 +80,7 @@ const REDACTED_PATHS = [
     EmailModule,
     HealthModule,
     AuthModule,
+    UsersModule,
   ],
   providers: [
     {
