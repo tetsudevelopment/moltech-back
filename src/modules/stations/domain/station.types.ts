@@ -16,4 +16,10 @@ export interface Station {
   openingTime: Date | null;
   closingTime: Date | null;
   createdAt: Date;
+  /**
+   * Actual number of power_banks currently assigned to this station.
+   * Populated by the repository via Prisma `_count`. The admin UI uses this
+   * to render "3/10" badges and disable add/move when capacity is reached.
+   */
+  powerBanksCount: number;
 }

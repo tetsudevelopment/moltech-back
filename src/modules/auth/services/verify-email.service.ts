@@ -71,7 +71,7 @@ export class VerifyEmailService {
     const familyId = randomUUID();
     const tokenId = randomUUID();
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwt.signAccessToken({ sub: activatedUser.id, role: 'user' }),
+      this.jwt.signAccessToken({ sub: activatedUser.id, role: activatedUser.role }),
       this.jwt.signRefreshToken({ sub: activatedUser.id, familyId, tokenId }),
     ]);
     await this.refreshStore.createFamily(familyId, activatedUser.id, tokenId);
@@ -88,6 +88,7 @@ export class VerifyEmailService {
       authProviderId: activatedUser.authProviderId,
       status: activatedUser.status,
       emailVerified: activatedUser.emailVerified,
+      role: activatedUser.role,
       createdAt: activatedUser.createdAt,
     };
     return { accessToken, refreshToken, user: publicUser };

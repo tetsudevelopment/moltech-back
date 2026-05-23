@@ -10,6 +10,7 @@ import {
 import { JwtService } from './jwt.service';
 import { RefreshService } from './refresh.service';
 import { RefreshTokenStore } from '../repositories/refresh-token-store';
+import { UserRepository } from '../repositories/user.repository';
 
 // ------------------------------------------------------------------ mocks ---
 
@@ -19,6 +20,7 @@ const mockSignRefreshToken = jest.fn();
 const mockGetCurrentTokenId = jest.fn();
 const mockSetCurrentTokenId = jest.fn();
 const mockRevokeFamily = jest.fn();
+const mockFindUserById = jest.fn();
 const mockEmit = jest.fn();
 
 const FAMILY_ID = 'family-uuid-001';
@@ -51,6 +53,7 @@ describe('RefreshService', () => {
     mockGetCurrentTokenId.mockResolvedValue(TOKEN_ID);
     mockSetCurrentTokenId.mockResolvedValue(undefined);
     mockRevokeFamily.mockResolvedValue(undefined);
+    mockFindUserById.mockResolvedValue({ id: USER_ID, role: 'user' });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -71,6 +74,7 @@ describe('RefreshService', () => {
             revokeFamily: mockRevokeFamily,
           },
         },
+        { provide: UserRepository, useValue: { findById: mockFindUserById } },
         { provide: EventEmitter2, useValue: { emit: mockEmit } },
       ],
     }).compile();

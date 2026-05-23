@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AuthController } from './controllers/auth.controller';
+import { AdminAuthGuard } from './guards/admin-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshTokenStore } from './repositories/refresh-token-store';
 import { UserRepository } from './repositories/user.repository';
@@ -39,6 +40,7 @@ import { VerifyEmailService } from './services/verify-email.service';
     FacebookOAuthVerifier,
     SocialLoginService,
     JwtAuthGuard,
+    AdminAuthGuard,
   ],
   exports: [
     PasswordService,
@@ -47,6 +49,7 @@ import { VerifyEmailService } from './services/verify-email.service';
     RefreshTokenStore,
     VerificationTokenRepository,
     JwtAuthGuard,
+    AdminAuthGuard,
   ],
 })
 export class AuthModule {}

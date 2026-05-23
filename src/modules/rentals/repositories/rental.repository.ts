@@ -25,6 +25,21 @@ export interface FinalizeRentalInput {
   penalty: string;
 }
 
+export interface RentalAdminFilters {
+  userId?: string;
+  status?: RentalStatus;
+  stationId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedRentals {
+  data: Rental[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 @Injectable()
 export class RentalRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -32,6 +47,26 @@ export class RentalRepository {
   async findById(id: string): Promise<Rental | null> {
     const row = await this.prisma.rentals.findUnique({ where: { id } });
     return row ? mapToDomain(row) : null;
+  }
+
+  async listAdmin(filters: RentalAdminFilters): Promise<PaginatedRentals> {
+    const page = Math.max(1, filters.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 50));
+    const where: Prisma.rentalsWhereInput = {};
+    if (filters.userId !== undefined) where.user_id = filters.userId;
+    if (filters.status !== undefined) where.status = filters.status;
+    if (filters.stationId !== undefined) where.pickup_station_id = filters.stationId;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.rentals.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { start_time: 'desc' },
+      }),
+      this.prisma.rentals.count({ where }),
+    ]);
+    return { data: rows.map(mapToDomain), total, page, pageSize };
   }
 
   async create(input: CreateRentalInput, tx?: Prisma.TransactionClient): Promise<Rental> {

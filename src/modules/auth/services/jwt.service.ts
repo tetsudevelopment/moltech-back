@@ -7,7 +7,7 @@ const ALG = 'RS256' as const;
 
 export interface AccessTokenClaims {
   sub: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'superadmin';
 }
 
 export interface RefreshTokenClaims {

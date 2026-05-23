@@ -67,6 +67,7 @@ export class AuthController {
       phone: string | null;
       email_verified: boolean;
       auth_provider: string;
+      role: string;
       status: string;
       created_at: string;
     };
@@ -86,6 +87,7 @@ export class AuthController {
           phone: result.user.phone,
           email_verified: result.user.emailVerified,
           auth_provider: result.user.authProvider,
+          role: result.user.role,
           status: result.user.status,
           created_at: result.user.createdAt.toISOString(),
         },
@@ -122,7 +124,12 @@ export class AuthController {
       email: string | null;
       first_name: string;
       last_name: string;
+      phone: string | null;
+      auth_provider: string;
+      role: string;
       status: string;
+      email_verified: boolean;
+      created_at: string;
     };
   }> {
     const result = await this.loginService.login(dto, {
@@ -138,7 +145,12 @@ export class AuthController {
         email: result.user.email,
         first_name: result.user.firstName,
         last_name: result.user.lastName,
+        phone: result.user.phone,
+        auth_provider: result.user.authProvider,
+        role: result.user.role,
         status: result.user.status,
+        email_verified: result.user.emailVerified,
+        created_at: result.user.createdAt.toISOString(),
       },
     };
   }
@@ -174,8 +186,12 @@ export class AuthController {
       email: string | null;
       first_name: string;
       last_name: string;
+      phone: string | null;
+      auth_provider: string;
+      role: string;
       status: string;
       email_verified: boolean;
+      created_at: string;
     };
   }> {
     const result = await this.verifyEmailService.verify(dto, {
@@ -191,8 +207,12 @@ export class AuthController {
         email: result.user.email,
         first_name: result.user.firstName,
         last_name: result.user.lastName,
+        phone: result.user.phone,
+        auth_provider: result.user.authProvider,
+        role: result.user.role,
         status: result.user.status,
         email_verified: result.user.emailVerified,
+        created_at: result.user.createdAt.toISOString(),
       },
     };
   }
@@ -247,9 +267,12 @@ export class AuthController {
       email: string | null;
       first_name: string;
       last_name: string;
+      phone: string | null;
       auth_provider: string;
+      role: string;
       email_verified: boolean;
       status: string;
+      created_at: string;
     };
   }> {
     const result = await this.socialLoginService.login(dto, {
@@ -266,9 +289,12 @@ export class AuthController {
         email: result.user.email,
         first_name: result.user.firstName,
         last_name: result.user.lastName,
+        phone: result.user.phone,
         auth_provider: result.user.authProvider,
+        role: result.user.role,
         email_verified: result.user.emailVerified,
         status: result.user.status,
+        created_at: result.user.createdAt.toISOString(),
       },
     };
   }

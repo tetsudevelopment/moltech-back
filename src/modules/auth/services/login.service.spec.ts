@@ -31,6 +31,8 @@ const activeUser: User = {
   lastName: 'Doe',
   phone: null,
   authProvider: 'email',
+  authProviderId: null,
+  role: 'user',
   status: 'active',
   emailVerified: true,
   createdAt: new Date('2026-01-01T00:00:00Z'),

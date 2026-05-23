@@ -2,6 +2,8 @@ export type UserStatus = 'active' | 'suspended' | 'inactive' | 'pending_verifica
 
 export type AuthProvider = 'email' | 'google' | 'facebook';
 
+export type UserRole = 'user' | 'admin' | 'superadmin';
+
 export interface User {
   id: string;
   email: string | null;
@@ -11,6 +13,7 @@ export interface User {
   phone: string | null;
   authProvider: AuthProvider;
   authProviderId: string | null;
+  role: UserRole;
   status: UserStatus;
   emailVerified: boolean;
   createdAt: Date;

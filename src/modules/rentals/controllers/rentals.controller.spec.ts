@@ -83,7 +83,7 @@ describe('RentalsController', () => {
       mockStartRental.mockResolvedValue(activeRental());
       const dto = StartRentalSchema.parse(validBody);
 
-      await controller.startRental(fakeCurrentUser, dto, fakeRequest, 'idem-key-1');
+      await controller.startRental(fakeCurrentUser, dto, fakeRequest);
 
       expect(mockStartRental).toHaveBeenCalledTimes(1);
       const [actualUserId, actualDto, actualContext] = mockStartRental.mock.calls[0] as [
@@ -101,7 +101,7 @@ describe('RentalsController', () => {
       mockStartRental.mockResolvedValue(activeRental());
       const dto = StartRentalSchema.parse(validBody);
 
-      const result = await controller.startRental(fakeCurrentUser, dto, fakeRequest, undefined);
+      const result = await controller.startRental(fakeCurrentUser, dto, fakeRequest);
 
       expect(result.rental.id).toBe(RENTAL_ID);
       expect(result.rental.user_id).toBe(USER_ID);
@@ -119,9 +119,9 @@ describe('RentalsController', () => {
       mockStartRental.mockRejectedValue(new Error('PAYMENT_DECLINED'));
       const dto = StartRentalSchema.parse(validBody);
 
-      await expect(
-        controller.startRental(fakeCurrentUser, dto, fakeRequest, undefined),
-      ).rejects.toThrow('PAYMENT_DECLINED');
+      await expect(controller.startRental(fakeCurrentUser, dto, fakeRequest)).rejects.toThrow(
+        'PAYMENT_DECLINED',
+      );
     });
 
     it('rejects body without required fields via ZodValidationPipe', () => {

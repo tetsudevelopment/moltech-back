@@ -30,6 +30,10 @@ export const EnvSchema = z
     // === OAuth providers ===
     GOOGLE_OAUTH_CLIENT_ID_ANDROID: z.string().min(1),
     GOOGLE_OAUTH_CLIENT_ID_IOS: z.string().min(1),
+    // Required when the mobile uses @react-native-google-signin/google-signin
+    // on Android: the id_token's `aud` claim is the Web Client ID, not the
+    // Android Client ID. Optional during the dev bootstrap window.
+    GOOGLE_OAUTH_CLIENT_ID_WEB: z.string().optional(),
     FACEBOOK_APP_ID: z.string().min(1),
     FACEBOOK_APP_SECRET: z.string().min(1),
 

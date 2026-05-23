@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 
-import { type AuthProvider, type User, type UserStatus } from '../domain/user.types';
+import { type AuthProvider, type User, type UserRole, type UserStatus } from '../domain/user.types';
 
 export interface CreateEmailUserInput {
   email: string;
@@ -106,6 +106,53 @@ export class UserRepository {
     return this.mapToDomain(row);
   }
 
+  async listAll(input: {
+    page: number;
+    pageSize: number;
+    role?: UserRole;
+    status?: UserStatus;
+    search?: string;
+  }): Promise<{ data: User[]; total: number; page: number; pageSize: number }> {
+    const page = Math.max(1, input.page);
+    const pageSize = Math.min(100, Math.max(1, input.pageSize));
+    const where: Prisma.usersWhereInput = {};
+    if (input.role !== undefined) where.role = input.role;
+    if (input.status !== undefined) where.status = input.status;
+    if (input.search !== undefined && input.search.trim().length > 0) {
+      const term = input.search.trim();
+      where.OR = [
+        { email: { contains: term, mode: 'insensitive' } },
+        { first_name: { contains: term, mode: 'insensitive' } },
+        { last_name: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+    const [rows, total] = await Promise.all([
+      this.prisma.users.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { created_at: 'desc' },
+      }),
+      this.prisma.users.count({ where }),
+    ]);
+    return { data: rows.map((r) => this.mapToDomain(r)), total, page, pageSize };
+  }
+
+  async updateRole(userId: string, role: UserRole): Promise<User | null> {
+    try {
+      const row = await this.prisma.users.update({
+        where: { id: userId },
+        data: { role },
+      });
+      return this.mapToDomain(row);
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        return null;
+      }
+      throw err;
+    }
+  }
+
   async updatePasswordHash(userId: string, passwordHash: string): Promise<User> {
     const row = await this.prisma.users.update({
       where: { id: userId },
@@ -123,6 +170,7 @@ export class UserRepository {
     phone: string | null;
     auth_provider: string;
     auth_provider_id: string | null;
+    role: string;
     status: string;
     email_verified: boolean;
     created_at: Date;
@@ -136,6 +184,7 @@ export class UserRepository {
       phone: row.phone,
       authProvider: row.auth_provider as AuthProvider,
       authProviderId: row.auth_provider_id,
+      role: row.role as UserRole,
       status: row.status as User['status'],
       emailVerified: row.email_verified,
       createdAt: row.created_at,

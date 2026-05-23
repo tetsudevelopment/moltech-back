@@ -102,6 +102,7 @@ export class RegisterService {
       phone: user.phone,
       authProvider: user.authProvider,
       authProviderId: user.authProviderId,
+      role: user.role,
       status: user.status,
       emailVerified: user.emailVerified,
       createdAt: user.createdAt,

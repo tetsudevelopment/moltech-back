@@ -5,6 +5,7 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
 import { GlobalExceptionFilter } from '@/common/filters/global-exception.filter';
+import { IdempotencyInterceptor, IdempotencyModule } from '@/common/idempotency';
 import { TimeoutInterceptor } from '@/common/interceptors/timeout.interceptor';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
 import { RequestIdMiddleware } from '@/common/middleware/request-id.middleware';
@@ -17,10 +18,13 @@ import { AuditModule } from '@/modules/audit/audit.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { EmailModule } from '@/modules/email/email.module';
 import { HealthModule } from '@/modules/health/health.module';
+import { PaymentMethodsModule } from '@/modules/payment-methods/payment-methods.module';
 import { PaymentsModule } from '@/modules/payments/payments.module';
+import { PowerBanksModule } from '@/modules/power-banks/power-banks.module';
 import { RentalsModule } from '@/modules/rentals/rentals.module';
 import { StationsModule } from '@/modules/stations/stations.module';
 import { UsersModule } from '@/modules/users/users.module';
+import { WebhooksModule } from '@/modules/webhooks/webhooks.module';
 
 const REDACTED_PATHS = [
   'password',
@@ -79,6 +83,7 @@ const REDACTED_PATHS = [
     AppThrottlerModule,
     PrismaModule,
     RedisModule,
+    IdempotencyModule,
     AuditModule,
     EmailModule,
     HealthModule,
@@ -87,6 +92,9 @@ const REDACTED_PATHS = [
     StationsModule,
     PaymentsModule,
     RentalsModule,
+    PaymentMethodsModule,
+    PowerBanksModule,
+    WebhooksModule,
   ],
   providers: [
     {
@@ -100,6 +108,13 @@ const REDACTED_PATHS = [
     {
       provide: APP_INTERCEPTOR,
       useFactory: () => new TimeoutInterceptor(10_000),
+    },
+    {
+      // Must run BEFORE TransformInterceptor so the cached body is the raw
+      // handler return value (not the {data,meta,error} envelope). Otherwise
+      // a replay would be double-enveloped.
+      provide: APP_INTERCEPTOR,
+      useClass: IdempotencyInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

@@ -96,6 +96,7 @@ describe('StationRepository', () => {
         skip: 0,
         take: 20,
         orderBy: { name: 'asc' },
+        include: { _count: { select: { power_banks: true } } },
       });
     });
 

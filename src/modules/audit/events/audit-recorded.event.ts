@@ -19,6 +19,14 @@ export const AUDIT_ACTIONS = [
   'payment_method.added',
   'payment_method.removed',
   'coupon.applied',
+  'admin.station.created',
+  'admin.station.updated',
+  'admin.station.deleted',
+  'admin.power_bank.created',
+  'admin.power_bank.updated',
+  'admin.power_bank.deleted',
+  'admin.power_bank.moved',
+  'admin.user.role_changed',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

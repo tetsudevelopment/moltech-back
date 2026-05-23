@@ -211,6 +211,7 @@ model users {
   accepted_policy     Boolean               @default(false)
   auth_provider       auth_provider_enum    @default(email)
   auth_provider_id    String?               @db.VarChar(200)
+  role                user_role_enum        @default(user)
   status              user_status_enum      @default(active)
   created_at          DateTime              @default(now()) @db.Timestamptz(6)
   notifications       notifications[]
@@ -319,6 +320,12 @@ enum station_status_enum {
   online
   offline
   maintenance
+}
+
+enum user_role_enum {
+  user
+  admin
+  superadmin
 }
 
 enum user_status_enum {

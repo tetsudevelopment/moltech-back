@@ -11,6 +11,7 @@ import {
 
 import { JwtService } from './jwt.service';
 import { RefreshTokenStore } from '../repositories/refresh-token-store';
+import { UserRepository } from '../repositories/user.repository';
 
 export interface RefreshContext {
   requestId?: string | undefined;
@@ -29,6 +30,7 @@ export class RefreshService {
   constructor(
     private readonly jwt: JwtService,
     private readonly refreshStore: RefreshTokenStore,
+    private readonly users: UserRepository,
     private readonly emitter: EventEmitter2,
   ) {}
 
@@ -53,12 +55,20 @@ export class RefreshService {
       throw new UnauthorizedException('Refresh token reuse detected');
     }
 
-    // Valid rotation — generate new tokenId and rotate
+    // Valid rotation — generate new tokenId and rotate. We re-read the user
+    // so role changes (e.g. promotion to admin) propagate on the next refresh
+    // without forcing a full re-login.
     const newTokenId = randomUUID();
     await this.refreshStore.setCurrentTokenId(familyId, newTokenId);
 
+    const user = await this.users.findById(userId);
+    if (!user) {
+      await this.refreshStore.revokeFamily(familyId);
+      throw new UnauthorizedException('User no longer exists');
+    }
+
     const [accessToken, newRefreshToken] = await Promise.all([
-      this.jwt.signAccessToken({ sub: userId, role: 'user' }),
+      this.jwt.signAccessToken({ sub: userId, role: user.role }),
       this.jwt.signRefreshToken({ sub: userId, familyId, tokenId: newTokenId }),
     ]);
 

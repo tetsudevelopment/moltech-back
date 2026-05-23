@@ -26,9 +26,19 @@ export class GoogleOAuthVerifier {
   constructor(private readonly config: AppConfigService) {}
 
   async verify(idToken: string): Promise<GoogleVerifiedClaims> {
+    // Three audiences are accepted because the id_token's `aud` claim varies
+    // by platform when using @react-native-google-signin/google-signin:
+    //   - iOS    → aud = iOS Client ID
+    //   - Android → aud = Web Client ID (yes, really; that's how the lib works)
+    //   - Web    → aud = Web Client ID
+    // The Android Client ID is kept to support raw native flows that don't go
+    // through the JS lib (just in case). The WEB id is optional in env: filter
+    // empty/undefined to avoid jose treating "" as a valid audience.
+    const webClientId = this.config.get('GOOGLE_OAUTH_CLIENT_ID_WEB');
     const audiences = [
       this.config.get('GOOGLE_OAUTH_CLIENT_ID_ANDROID'),
       this.config.get('GOOGLE_OAUTH_CLIENT_ID_IOS'),
+      ...(webClientId !== undefined && webClientId.length > 0 ? [webClientId] : []),
     ];
 
     let payload: JWTPayload;

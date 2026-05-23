@@ -6,7 +6,7 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:3000/api/v1", "type": "string" },
+    { "key": "baseUrl", "value": "http://localhost:3010/api/v1", "type": "string" },
     { "key": "accessToken", "value": "", "type": "string" },
     { "key": "refreshToken", "value": "", "type": "string" },
     { "key": "userId", "value": "", "type": "string" },
@@ -16,6 +16,8 @@
     { "key": "powerBankId", "value": "", "type": "string" },
     { "key": "paymentMethodId", "value": "", "type": "string" },
     { "key": "rentalId", "value": "", "type": "string" },
+    { "key": "paymentId", "value": "", "type": "string" },
+    { "key": "webhookSecret", "value": "mock_webhook_secret_do_not_use_in_prod", "type": "string", "description": "HMAC secret used by MockPaymentGateway. Reemplazar por PAYMENTSWAY_WEBHOOK_SECRET cuando PAYMENT_GATEWAY=paymentsway." },
     { "key": "testEmail", "value": "smoke@test.com", "type": "string" },
     { "key": "testPassword", "value": "SmokeTest1", "type": "string" }
   ],
@@ -363,7 +365,7 @@
     },
     {
       "name": "Rentals",
-      "description": "Alquiler de power banks. Requieren autenticación. **MVP**: idempotencia aceptada via header pero no deduplica todavía (interceptor llega en F5b).",
+      "description": "Alquiler de power banks. Requieren autenticación. Idempotencia activa: `Idempotency-Key` (UUID v4) es obligatorio en `POST /rentals` y `POST /rentals/:id/finalize`. Reintentos con la misma key + mismo payload retornan la respuesta cacheada (24h). Mismo key + payload distinto → 409 IDEMPOTENCY_KEY_CONFLICT.",
       "item": [
         {
           "name": "POST /rentals (start)",
@@ -390,7 +392,7 @@
             "header": [
               { "key": "Authorization", "value": "Bearer {{accessToken}}" },
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "{{$guid}}", "description": "UUID v4. Aceptado pero NO deduplicado todavía (F5b). Generado por Postman con {{$guid}}." }
+              { "key": "Idempotency-Key", "value": "{{$guid}}", "description": "UUID v4 obligatorio. El interceptor deduplica por (userId, method, path, key) durante 24h. Retry con misma key + mismo body → respuesta cacheada con header `X-Idempotent-Replay: true`. Distinto body → 409 IDEMPOTENCY_KEY_CONFLICT." }
             ],
             "body": {
               "mode": "raw",
@@ -405,13 +407,574 @@
           "name": "POST /rentals/:id/finalize",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}", "description": "UUID v4 obligatorio. Mismo finalize ejecutado dos veces con la misma key devuelve la respuesta cacheada — protege ante double-tap del usuario al devolver el power bank." }
+            ],
             "url": {
               "raw": "{{baseUrl}}/rentals/{{rentalId}}/finalize",
               "host": ["{{baseUrl}}"],
               "path": ["rentals", "{{rentalId}}", "finalize"]
             },
             "description": "Finaliza el alquiler. Calcula duración real, costo final, penalty si excede estimado. Libera el power_bank.\n\n## Cálculo de costos\n- `actual_duration_hours = (now - start_time) / 3600000` (precisión 2 decimales)\n- `billable_hours = max(actual_duration_hours, 0.25)` — mínimo facturable 15 min\n- `final_cost = billable_hours × hourly_rate`\n- `penalty = max(final_cost - estimated_cost, 0)` — overage como penalty\n\n## Success 200\nMismo shape que el rental de start, ahora con `end_time`, `actual_duration_hours`, `final_cost`, `penalty`, `status: \"completed\"`.\n\n## Errores\n- 400 VALIDATION_ERROR (id no es UUID)\n- 401 UNAUTHORIZED\n- 403 RENTAL_NOT_OWNED (el rental existe pero pertenece a otro user)\n- 404 RENTAL_NOT_FOUND\n- 409 RENTAL_NOT_ACTIVE (ya está completed/cancelled/penalized)\n\n## Side effects\n- Update `rentals`: end_time, actual_duration, final_cost, penalty, status=completed.\n- Libera `power_banks.status='available'`.\n- Audit `rental.finalized` con metadata `{ rentalId, finalCost, penalty }`.\n\n## Pendiente\n- Cobro adicional por overage (penalty > 0). Hoy se persiste el penalty pero NO se cobra. Llega con F5b."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Methods",
+      "description": "Tokenización y administración de medios de pago del usuario. Requieren autenticación. `POST` lleva `Idempotency-Key` obligatorio.",
+      "item": [
+        {
+          "name": "POST /payment-methods",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "try {",
+                  "  const r = pm.response.json();",
+                  "  if (r.data && r.data.paymentMethod && r.data.paymentMethod.id) {",
+                  "    pm.collectionVariables.set('paymentMethodId', r.data.paymentMethod.id);",
+                  "    console.log('Saved paymentMethodId:', r.data.paymentMethod.id);",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temporary_token\": \"tmp_sdk_visa_4242\",\n  \"cardholder_name\": \"JANE DOE\",\n  \"last_four_digits\": \"4242\",\n  \"expiry_month\": 12,\n  \"expiry_year\": 2099,\n  \"type\": \"visa\",\n  \"is_default\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/payment-methods", "host": ["{{baseUrl}}"], "path": ["payment-methods"] },
+            "description": "Tokeniza una tarjeta. El backend NUNCA recibe el PAN: el `temporary_token` es lo que el SDK de pasarela emite tras capturar la tarjeta. El gateway responde con un token durable (`gateway_token`) que es lo único que se persiste, junto con `last_four_digits`, `cardholder_name`, marca y expiry.\n\n## Validaciones (Zod)\n- `temporary_token`: string 1-500 chars\n- `cardholder_name`: 1-100 chars (capitalizado por convención)\n- `last_four_digits`: exactamente 4 dígitos\n- `expiry_month`: 1-12\n- `expiry_year`: 2026-2099\n- `type`: visa | mastercard | amex | dinersclub | other\n- `is_default`: bool opcional (default false). Si true, otros métodos del mismo user se desmarcan en la misma transacción.\n\n## Success 201\n```json\n{ \"data\": { \"paymentMethod\": { \"id\": \"...\", \"user_id\": \"...\", \"type\": \"visa\", \"cardholder_name\": \"JANE DOE\", \"last_four_digits\": \"4242\", \"expiry_month\": 12, \"expiry_year\": 2099, \"is_default\": true, \"status\": \"active\", \"created_at\": \"...\" } } }\n```\n\n## Errores\n| Status | code | Cuándo |\n|---|---|---|\n| 400 | VALIDATION_ERROR | Cualquier validación Zod falla |\n| 400 | PAYMENT_METHOD_EXPIRED | expiry_year/month en el pasado |\n| 400 | IDEMPOTENCY_KEY_REQUIRED / IDEMPOTENCY_KEY_INVALID | Header faltante o no es UUID v4 |\n| 401 | UNAUTHORIZED | Bearer faltante o inválido |\n| 409 | IDEMPOTENCY_KEY_CONFLICT / IDEMPOTENCY_IN_PROGRESS | Mismo key con payload distinto, o en progreso |\n\n## Side effects\n- Llama `gateway.tokenize` (Mock devuelve `mock_pm_<uuid>`, PaymentsWay todavía devuelve NotImplemented).\n- Inserta row en `payment_methods` con `gateway_token = result.gatewayToken` y `status='active'`.\n- Si `is_default=true`, hace `UPDATE` previo de los otros métodos del user a `is_default=false` en la misma `$transaction`.\n- Audit `payment_method.added` con `{ paymentMethodId, gateway, lastFour, brand }`."
+          }
+        },
+        {
+          "name": "GET /payment-methods",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/payment-methods", "host": ["{{baseUrl}}"], "path": ["payment-methods"] },
+            "description": "Lista los métodos del usuario autenticado. **No retorna métodos con `status='deleted'`**. Ordenados: `is_default` desc primero, luego `created_at` desc.\n\n## Success 200\n```json\n{ \"data\": { \"paymentMethods\": [ { ...método... } ] } }\n```"
+          }
+        },
+        {
+          "name": "DELETE /payment-methods/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/payment-methods/{{paymentMethodId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["payment-methods", "{{paymentMethodId}}"]
+            },
+            "description": "Soft-delete: `status='deleted'`, `is_default=false`. Idempotente — un segundo DELETE devuelve igualmente el mismo estado sin tocar DB. El gateway_token NO se revoca en este endpoint (deja al gateway su propio TTL).\n\n## Success 204 (sin body)\n\n## Errores\n- 401 UNAUTHORIZED\n- 404 PAYMENT_METHOD_NOT_FOUND (no existe o no es del user)\n\n## Side effects\n- `UPDATE payment_methods SET status='deleted', is_default=false WHERE id=$1`.\n- Audit `payment_method.removed` con `{ paymentMethodId }`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "description": "Lectura y administración de pagos. `POST :id/refund` y `POST :id/retry` requieren `Idempotency-Key`. Los pagos son CREADOS por el flujo de `POST /rentals` (no por un endpoint directo).",
+      "item": [
+        {
+          "name": "GET /payments",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/payments", "host": ["{{baseUrl}}"], "path": ["payments"] },
+            "description": "Últimos 50 pagos del usuario, ordenados por `attempted_at` desc.\n\n## Success 200\n```json\n{ \"data\": { \"payments\": [ { \"id\": \"...\", \"rental_id\": \"...\", \"amount\": \"15000.00\", \"currency\": \"COP\", \"status\": \"approved\", \"transaction_id\": \"mock_txn_...\", \"attempted_at\": \"...\" } ] } }\n```"
+          }
+        },
+        {
+          "name": "GET /payments/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/payments/{{paymentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", "{{paymentId}}"]
+            },
+            "description": "Detalle de un pago. Valida ownership (403 si pertenece a otro user).\n\n## Errores\n- 401 UNAUTHORIZED\n- 403 PAYMENT_NOT_OWNED\n- 404 PAYMENT_NOT_FOUND"
+          }
+        },
+        {
+          "name": "POST /payments/:id/refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/{{paymentId}}/refund",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", "{{paymentId}}", "refund"]
+            },
+            "description": "Reembolso total del pago. Solo aplica si `status='approved'`. Llama `gateway.refund`, marca el pago como `refunded`.\n\n## Errores\n- 400 REFUND_REJECTED (gateway no aprobó el refund)\n- 401 UNAUTHORIZED\n- 403 PAYMENT_NOT_OWNED\n- 404 PAYMENT_NOT_FOUND\n- 409 PAYMENT_NOT_REFUNDABLE (status != approved)\n\n## Side effects\n- `UPDATE payments SET status='refunded', gateway_message='Refund <id> approved'`.\n- Audit `payment.refunded` con `{ paymentId, transactionId, refundId, amount, currency }`."
+          }
+        },
+        {
+          "name": "POST /payments/:id/retry",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/{{paymentId}}/retry",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", "{{paymentId}}", "retry"]
+            },
+            "description": "Reintenta un pago en `status='pending'` o `'error'`. Vuelve a llamar al gateway con el mismo `paymentMethodId` (debe seguir activo). Actualiza el row del pago con la nueva transacción.\n\n## Errores\n- 400 PAYMENT_DECLINED (gateway rechazó el retry)\n- 401 UNAUTHORIZED\n- 403 PAYMENT_NOT_OWNED\n- 404 PAYMENT_NOT_FOUND\n- 409 PAYMENT_NOT_RETRYABLE (status != pending/error)\n- 409 PAYMENT_METHOD_UNAVAILABLE (PM deleted/expired)\n\n## Side effects\n- Llama `gateway.charge` con el nuevo idempotencyKey interno.\n- `UPDATE payments` con `status`, `transaction_id` (NUEVO), `gateway_message`.\n- Audit `payment.charged` (approved) o `payment.declined`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "description": "Endpoint inbound desde la pasarela. **No usa JWT** — la autenticación es vía firma HMAC-SHA256 sobre el raw body con `PAYMENTSWAY_WEBHOOK_SECRET`. El processing es idempotente por `transactionId`.",
+      "item": [
+        {
+          "name": "POST /webhooks/payments-way (signed)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Compute HMAC-SHA256 of the request body so the back accepts it.",
+                  "// Uses {{webhookSecret}} — set it to the value of PAYMENTSWAY_WEBHOOK_SECRET",
+                  "// (or the Mock's static secret when PAYMENT_GATEWAY=mock).",
+                  "const body = pm.request.body && pm.request.body.raw ? pm.request.body.raw : '';",
+                  "const secret = pm.variables.get('webhookSecret');",
+                  "const hex = CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'x-signature', value: 'sha256=' + hex });",
+                  "console.log('Signed webhook with', hex.slice(0, 12) + '...');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"payment.approved\",\n  \"transactionId\": \"mock_txn_REPLACE_WITH_REAL_ID\",\n  \"message\": \"Approved by gateway\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/webhooks/payments-way", "host": ["{{baseUrl}}"], "path": ["webhooks", "payments-way"] },
+            "description": "Webhook entrante. Eventos soportados:\n- `payment.approved` → marca el pago como `approved`.\n- `payment.declined` → marca como `rejected`.\n- `payment.refunded` → marca como `refunded` (acepta `refundId` opcional en el body).\n- `payment.error` → marca como `error`.\n- Cualquier otro `type` → 200 OK con `outcome: 'ignored'` (no romper la pasarela con 4xx).\n\n## Cómo usar este endpoint\n1. Crear un rental que genere un payment con transaction_id conocido (ver `POST /rentals`).\n2. Reemplazar `transactionId` en el body por el valor real de `mock_txn_...`.\n3. El pre-request script firma el body con HMAC-SHA256(secret, raw_body) y agrega `x-signature: sha256=<hex>`.\n4. Disparar el request.\n\n## Validación de firma\n- Lee `req.rawBody` (sin parsear) — preservado vía `NestFactory.create(AppModule, { rawBody: true })`.\n- Computa HMAC-SHA256 con el secreto y compara contra `x-signature` usando `timingSafeEqual`.\n- Falla → 401 WEBHOOK_SIGNATURE_INVALID, no procesa nada.\n\n## Idempotencia\n- Lookup por `(gateway, transactionId)`.\n- Si el pago ya está en el estado target del evento, el handler emite audit pero NO toca DB y devuelve `outcome: 'noop'`.\n- Si la transacción no existe, devuelve `outcome: 'ignored'` (200 OK) y loguea — no es error.\n\n## Success 200\n```json\n{ \"data\": { \"received\": true, \"outcome\": \"applied\" | \"noop\" | \"ignored\", \"event_type\": \"payment.approved\" } }\n```\n\n## Errores\n- 401 WEBHOOK_SIGNATURE_INVALID (sin firma, firma malformada, o no coincide)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Stations",
+      "description": "Endpoints administrativos para gestionar gabinetes (stations). **Requieren `role IN ('admin','superadmin')`** en el JWT — protegidos por `AdminAuthGuard`. Antes de probar: promover un user a admin con `UPDATE users SET role='admin' WHERE email=...` y volver a loguear (o refrescar token) para obtener el nuevo JWT.",
+      "item": [
+        {
+          "name": "GET /admin/stations (todas)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/admin/stations", "host": ["{{baseUrl}}"], "path": ["admin", "stations"] },
+            "description": "Lista TODAS las stations (sin filtro de status). PageSize default 100. Para listado paginado/filtrable usar `GET /stations` del cliente.\n\n## Success 200\n```json\n{ \"data\": { \"stations\": [ { ...station... } ], \"total\": 42 } }\n```\n\n## Errores\n- 401 UNAUTHORIZED\n- 403 ADMIN_ONLY (rol insuficiente)"
+          }
+        },
+        {
+          "name": "GET /admin/stations/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "stations", "{{stationId}}"]
+            },
+            "description": "Detalle administrativo de una station.\n\n## Errores\n- 401 UNAUTHORIZED\n- 403 ADMIN_ONLY\n- 404 STATION_NOT_FOUND"
+          }
+        },
+        {
+          "name": "GET /admin/stations/:id/state",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/stations/{{stationId}}/state",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "stations", "{{stationId}}", "state"]
+            },
+            "description": "Estado operacional del gabinete: lista de power_banks dentro + resumen por status. **El endpoint clave del dashboard admin para \"ver qué hay en el gabinete\".**\n\n## Success 200\n```json\n{\n  \"data\": {\n    \"station\": { ...station... },\n    \"power_banks\": [ { \"id\": \"...\", \"code\": \"PB-001\", \"status\": \"available\", \"battery_level\": 95 } ],\n    \"summary\": { \"total\": 8, \"available\": 5, \"rented\": 2, \"charging\": 1, \"damaged\": 0, \"retired\": 0 }\n  }\n}\n```"
+          }
+        },
+        {
+          "name": "POST /admin/stations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "try {",
+                  "  const r = pm.response.json();",
+                  "  if (r.data && r.data.station && r.data.station.id) {",
+                  "    pm.collectionVariables.set('stationId', r.data.station.id);",
+                  "    console.log('Saved stationId:', r.data.station.id);",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gabinete Centro 01\",\n  \"city\": \"Bogotá\",\n  \"zone\": \"Centro Internacional\",\n  \"address\": \"Cra 7 # 32-16\",\n  \"latitude\": 4.6097100,\n  \"longitude\": -74.0817500,\n  \"hourly_rate\": 5000,\n  \"currency\": \"COP\",\n  \"total_capacity\": 8,\n  \"status\": \"online\",\n  \"description\": \"Gabinete principal Bogotá centro\",\n  \"opening_time\": \"06:00\",\n  \"closing_time\": \"23:00\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/admin/stations", "host": ["{{baseUrl}}"], "path": ["admin", "stations"] },
+            "description": "Crea un gabinete nuevo.\n\n## Validaciones (Zod)\n- `name`: 1-150 chars\n- `city`: 1-80 chars\n- `zone`: 0-100 chars, opcional\n- `address`: 1-200 chars\n- `latitude`: -90 a 90\n- `longitude`: -180 a 180\n- `hourly_rate`: positivo\n- `currency`: 3 chars (ISO 4217), default 'COP'\n- `total_capacity`: 0-1000, default 0\n- `status`: online | offline | maintenance, default online\n- `description`: max 2000, opcional\n- `opening_time`/`closing_time`: HH:MM o HH:MM:SS, opcional\n\n## Side effects\n- INSERT en stations\n- Audit `admin.station.created` con `{ stationId, name, city }`"
+          }
+        },
+        {
+          "name": "PATCH /admin/stations/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"maintenance\",\n  \"description\": \"En mantenimiento temporal\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "stations", "{{stationId}}"]
+            },
+            "description": "Actualiza campos de un gabinete. Todos los campos son opcionales — solo se actualizan los enviados.\n\n## Errores\n- 401 UNAUTHORIZED\n- 403 ADMIN_ONLY\n- 404 STATION_NOT_FOUND\n\n## Side effects\n- UPDATE en stations\n- Audit `admin.station.updated` con `{ stationId, changedFields }`"
+          }
+        },
+        {
+          "name": "DELETE /admin/stations/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "stations", "{{stationId}}"]
+            },
+            "description": "Borra un gabinete (hard delete). **Falla con 409 si todavía tiene power_banks asociados** — hay que moverlos o retirarlos primero.\n\n## Success 204 (sin body)\n\n## Errores\n- 401 UNAUTHORIZED\n- 403 ADMIN_ONLY\n- 404 STATION_NOT_FOUND\n- 409 STATION_HAS_POWER_BANKS\n\n## Side effects\n- DELETE en stations\n- Audit `admin.station.deleted` con `{ stationId }`"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Power Banks",
+      "description": "CRUD admin de baterías. Requieren `role IN ('admin','superadmin')`. Audit: `admin.power_bank.created|updated|deleted|moved`.",
+      "item": [
+        {
+          "name": "GET /admin/power-banks",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/power-banks?page=1&page_size=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "power-banks"],
+              "query": [
+                { "key": "station_id", "value": "", "disabled": true },
+                { "key": "status", "value": "", "description": "available|rented|charging|damaged|retired", "disabled": true },
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /admin/power-banks/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/power-banks/{{powerBankId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "power-banks", "{{powerBankId}}"]
+            }
+          }
+        },
+        {
+          "name": "POST /admin/power-banks",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "try {",
+                  "  const r = pm.response.json();",
+                  "  if (r.data && r.data.powerBank && r.data.powerBank.id) {",
+                  "    pm.collectionVariables.set('powerBankId', r.data.powerBank.id);",
+                  "  }",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PB-001\",\n  \"station_id\": \"{{stationId}}\",\n  \"model\": \"MOLTECH-10000mAh\",\n  \"qr_code\": \"qr_pb_001_abc\",\n  \"status\": \"available\",\n  \"battery_level\": 100\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/admin/power-banks", "host": ["{{baseUrl}}"], "path": ["admin", "power-banks"] },
+            "description": "Crea una batería y la asigna a un gabinete.\n\n## Validaciones (Zod)\n- code: 1-20 chars, único\n- qr_code: 1-300 chars, único\n- station_id: UUID existente\n- status: opcional, default 'available'\n- battery_level: 0-100, default 100\n\n## Errores\n- 400 STATION_NOT_FOUND (FK)\n- 401 UNAUTHORIZED\n- 403 ADMIN_ONLY\n- 409 POWER_BANK_DUPLICATE (code o qr_code repetido)\n\n## Side effects\n- INSERT en power_banks\n- Audit admin.power_bank.created"
+          }
+        },
+        {
+          "name": "PATCH /admin/power-banks/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"battery_level\": 75,\n  \"status\": \"charging\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/power-banks/{{powerBankId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "power-banks", "{{powerBankId}}"]
+            },
+            "description": "Actualiza cualquier campo. Para mover de gabinete preferí POST /:id/move que tiene validación extra de status='rented'."
+          }
+        },
+        {
+          "name": "POST /admin/power-banks/:id/move",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"station_id\": \"{{stationId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/power-banks/{{powerBankId}}/move",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "power-banks", "{{powerBankId}}", "move"]
+            },
+            "description": "Mueve la batería a otro gabinete. **Falla con 409 POWER_BANK_RENTED** si está alquilada — esperar la devolución del usuario.\n\nAudit `admin.power_bank.moved` con `{ powerBankId, fromStationId, toStationId }`."
+          }
+        },
+        {
+          "name": "DELETE /admin/power-banks/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/power-banks/{{powerBankId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "power-banks", "{{powerBankId}}"]
+            },
+            "description": "Hard delete. **Falla con 409 POWER_BANK_HAS_RENTALS** si tiene rentals históricos — en ese caso marcar como `retired` vía PATCH."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Users",
+      "description": "Listado y promoción de usuarios. **PATCH /:id/role reemplaza el `UPDATE users SET role=...` manual.**",
+      "item": [
+        {
+          "name": "GET /admin/users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?page=1&page_size=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"],
+              "query": [
+                { "key": "role", "value": "", "description": "user|admin|superadmin", "disabled": true },
+                { "key": "status", "value": "", "description": "active|suspended|inactive|pending_verification", "disabled": true },
+                { "key": "search", "value": "", "description": "case-insensitive en email/nombre", "disabled": true },
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /admin/users/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /admin/users/:id/role",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{userId}}/role",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "{{userId}}", "role"]
+            },
+            "description": "Cambia rol del usuario.\n\n## Reglas\n- **Bloqueado cambiar tu propio rol** (CANNOT_CHANGE_OWN_ROLE 400) — evita lockout accidental. Pedile a otro admin.\n- Si el target ya tiene ese rol → 200 con noop, igual audita.\n- El próximo refresh del user recoge el nuevo rol automáticamente (sin re-login forzado).\n\n## Side effects\n- UPDATE users SET role=...\n- Audit `admin.user.role_changed` con `{ userId, previousRole, newRole }`"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Payments",
+      "description": "Lectura cross-user para monitoreo.",
+      "item": [
+        {
+          "name": "GET /admin/payments",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/payments?page=1&page_size=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "payments"],
+              "query": [
+                { "key": "user_id", "value": "", "disabled": true },
+                { "key": "rental_id", "value": "", "disabled": true },
+                { "key": "status", "value": "", "description": "pending|approved|rejected|refunded|error", "disabled": true },
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /admin/payments/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/payments/{{paymentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "payments", "{{paymentId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Rentals",
+      "description": "Lectura cross-user de alquileres.",
+      "item": [
+        {
+          "name": "GET /admin/rentals",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/rentals?page=1&page_size=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "rentals"],
+              "query": [
+                { "key": "user_id", "value": "", "disabled": true },
+                { "key": "station_id", "value": "", "disabled": true },
+                { "key": "status", "value": "", "description": "active|completed|cancelled|penalized", "disabled": true },
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /admin/rentals/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/rentals/{{rentalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "rentals", "{{rentalId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Audit Log",
+      "description": "Lectura del `audit_log`. Append-only. La IP almacenada está anonimizada (último octeto = 0).",
+      "item": [
+        {
+          "name": "GET /admin/audit-log",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/audit-log?page=1&page_size=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "audit-log"],
+              "query": [
+                { "key": "action", "value": "", "description": "ej. admin.station.created, payment.charged, auth.login.success", "disabled": true },
+                { "key": "actor", "value": "", "description": "userId UUID o 'system'", "disabled": true },
+                { "key": "since", "value": "", "description": "ISO 8601 con TZ", "disabled": true },
+                { "key": "until", "value": "", "description": "ISO 8601 con TZ", "disabled": true },
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            },
+            "description": "Ordenado por created_at DESC."
           }
         }
       ]

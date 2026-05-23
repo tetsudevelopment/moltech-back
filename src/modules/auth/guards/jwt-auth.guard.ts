@@ -10,7 +10,7 @@ import { JwtService } from '../services/jwt.service';
 
 export interface AuthenticatedUser {
   id: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'superadmin';
   jti: string | undefined;
 }
 

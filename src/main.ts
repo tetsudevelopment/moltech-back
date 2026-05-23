@@ -7,7 +7,7 @@ import { AppConfigService } from '@/config/config.service';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
 
   app.useLogger(app.get(Logger));
 
@@ -29,7 +29,10 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const port = config.get('PORT');
-  await app.listen(port);
+  // Bind to 0.0.0.0 (all interfaces) so the mobile app on a physical device
+  // can reach the back over the LAN. Default bind is localhost-only, which
+  // works for the dashboard on the same machine but not for the phone.
+  await app.listen(port, '0.0.0.0');
 }
 
 void bootstrap();

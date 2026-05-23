@@ -77,7 +77,7 @@ export class LoginService {
     const tokenId = randomUUID();
 
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwt.signAccessToken({ sub: user.id, role: 'user' }),
+      this.jwt.signAccessToken({ sub: user.id, role: user.role }),
       this.jwt.signRefreshToken({ sub: user.id, familyId, tokenId }),
     ]);
 
@@ -95,6 +95,7 @@ export class LoginService {
       authProviderId: user.authProviderId,
       status: user.status,
       emailVerified: user.emailVerified,
+      role: user.role,
       createdAt: user.createdAt,
     };
     return { accessToken, refreshToken, user: publicUser };

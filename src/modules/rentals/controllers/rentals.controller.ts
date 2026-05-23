@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -11,6 +10,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 
+import { Idempotent } from '@/common/idempotency';
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe';
 import { UuidSchema } from '@/common/validation/common.schema';
 import { CurrentUser } from '@/modules/auth/decorators/current-user.decorator';
@@ -49,15 +49,12 @@ export class RentalsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @Idempotent()
   async startRental(
     @CurrentUser() current: { id: string },
     @Body(new ZodValidationPipe(StartRentalSchema)) dto: StartRentalDto,
     @Req() req: Request & { id?: string },
-    @Headers('idempotency-key') idempotencyKey: string | undefined,
   ): Promise<{ rental: PublicRental }> {
-    // Idempotency-Key header accepted but full dedup interceptor lands in F5b.
-    void idempotencyKey;
-
     const rental = await this.rentalService.startRental(current.id, dto, {
       requestId: req.id,
       ip: req.ip,
@@ -72,6 +69,7 @@ export class RentalsController {
 
   @Post(':id/finalize')
   @HttpCode(HttpStatus.OK)
+  @Idempotent()
   async finalizeRental(
     @CurrentUser() current: { id: string },
     @Param('id', new ZodValidationPipe(UuidSchema)) id: string,

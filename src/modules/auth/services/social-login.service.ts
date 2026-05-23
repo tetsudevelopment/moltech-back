@@ -94,7 +94,7 @@ export class SocialLoginService {
     const tokenId = randomUUID();
 
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwt.signAccessToken({ sub: user.id, role: 'user' }),
+      this.jwt.signAccessToken({ sub: user.id, role: user.role }),
       this.jwt.signRefreshToken({ sub: user.id, familyId, tokenId }),
     ]);
 
@@ -110,6 +110,7 @@ export class SocialLoginService {
       phone: user.phone,
       authProvider: user.authProvider,
       authProviderId: user.authProviderId,
+      role: user.role,
       status: user.status,
       emailVerified: user.emailVerified,
       createdAt: user.createdAt,
