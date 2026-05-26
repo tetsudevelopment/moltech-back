@@ -23,6 +23,7 @@ import {
 import { type ResetPasswordDto, ResetPasswordSchema } from '../dtos/reset-password.dto';
 import { type SocialLoginDto, SocialLoginSchema } from '../dtos/social-login.dto';
 import { type VerifyEmailDto, VerifyEmailSchema } from '../dtos/verify-email.dto';
+import { type VerifyResetCodeDto, VerifyResetCodeSchema } from '../dtos/verify-reset-code.dto';
 import { ForgotPasswordService } from '../services/forgot-password.service';
 import { JwtService } from '../services/jwt.service';
 import { LoginService } from '../services/login.service';
@@ -37,6 +38,7 @@ import { ResendVerificationService } from '../services/resend-verification.servi
 import { ResetPasswordService } from '../services/reset-password.service';
 import { SocialLoginService } from '../services/social-login.service';
 import { VerifyEmailService } from '../services/verify-email.service';
+import { VerifyResetCodeService } from '../services/verify-reset-code.service';
 
 @Controller('auth')
 export class AuthController {
@@ -51,6 +53,7 @@ export class AuthController {
     private readonly resetPasswordService: ResetPasswordService,
     private readonly socialLoginService: SocialLoginService,
     private readonly jwtService: JwtService,
+    private readonly verifyResetCodeService: VerifyResetCodeService,
   ) {}
 
   @Post('register')
@@ -250,6 +253,18 @@ export class AuthController {
       ip: req.ip,
     });
     return null;
+  }
+
+  @Post('verify-reset-code')
+  @HttpCode(HttpStatus.OK)
+  async verifyResetCode(
+    @Body(new ZodValidationPipe(VerifyResetCodeSchema)) dto: VerifyResetCodeDto,
+  ): Promise<{ attemptsRemaining: number }> {
+    const { attemptsRemaining } = await this.verifyResetCodeService.validateResetAttempt(
+      dto.email,
+      dto.token,
+    );
+    return { attemptsRemaining };
   }
 
   @Post('social-login')

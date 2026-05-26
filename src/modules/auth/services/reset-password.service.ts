@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import {
@@ -7,6 +7,7 @@ import {
 } from '@/modules/audit/events/audit-recorded.event';
 
 import { PasswordService } from './password.service';
+import { VerifyResetCodeService } from './verify-reset-code.service';
 import type { ResetPasswordDto } from '../dtos/reset-password.dto';
 import { UserRepository } from '../repositories/user.repository';
 import { VerificationTokenRepository } from '../repositories/verification-token.repository';
@@ -16,48 +17,31 @@ export interface ResetPasswordContext {
   ip?: string | undefined;
 }
 
-const INVALID_TOKEN_RESPONSE = {
-  code: 'TOKEN_INVALID',
-  message: 'Invalid or expired reset code',
-} as const;
-
 @Injectable()
 export class ResetPasswordService {
-  private readonly logger = new Logger(ResetPasswordService.name);
-
   constructor(
     private readonly users: UserRepository,
     private readonly tokens: VerificationTokenRepository,
     private readonly passwords: PasswordService,
     private readonly emitter: EventEmitter2,
+    private readonly verifyResetCodeService: VerifyResetCodeService,
   ) {}
 
   async reset(dto: ResetPasswordDto, context: ResetPasswordContext = {}): Promise<void> {
-    const user = await this.users.findByEmail(dto.email);
-    if (!user) {
-      this.logger.warn(
-        { requestId: context.requestId, reason: 'user_not_found' },
-        'Reset-password rejected',
-      );
-      throw new BadRequestException(INVALID_TOKEN_RESPONSE);
-    }
-
-    const token = await this.tokens.findValid(user.id, 'reset_password', dto.token);
-    if (!token) {
-      this.logger.warn(
-        { userId: user.id, requestId: context.requestId, reason: 'invalid_or_expired' },
-        'Reset-password rejected',
-      );
-      throw new BadRequestException(INVALID_TOKEN_RESPONSE);
-    }
+    // Guard: validates the code and enforces the attempt limit (throws on failure).
+    // Returns userId from the token row — no second DB lookup needed.
+    const { tokenId, userId } = await this.verifyResetCodeService.validateResetAttempt(
+      dto.email,
+      dto.token,
+    );
 
     const newHash = await this.passwords.hash(dto.new_password);
 
-    await this.users.updatePasswordHash(user.id, newHash);
-    await this.tokens.markUsed(token.id);
-    await this.tokens.invalidateActive(user.id, 'reset_password');
+    await this.users.updatePasswordHash(userId, newHash);
+    await this.tokens.markUsed(tokenId);
+    await this.tokens.invalidateActive(userId, 'reset_password');
 
-    this.emitCompleted(user.id, context);
+    this.emitCompleted(userId, context);
   }
 
   private emitCompleted(actor: string, context: ResetPasswordContext): void {

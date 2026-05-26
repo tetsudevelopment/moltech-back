@@ -9,40 +9,16 @@ import {
 
 import { PasswordService } from './password.service';
 import { ResetPasswordService } from './reset-password.service';
-import type { User } from '../domain/user.types';
+import { VerifyResetCodeService } from './verify-reset-code.service';
 import { UserRepository } from '../repositories/user.repository';
 import { VerificationTokenRepository } from '../repositories/verification-token.repository';
 
-const mockFindByEmail = jest.fn();
 const mockUpdatePasswordHash = jest.fn();
-const mockFindValid = jest.fn();
 const mockMarkUsed = jest.fn();
 const mockInvalidateActive = jest.fn();
 const mockHash = jest.fn();
 const mockEmit = jest.fn();
-
-const user: User = {
-  id: 'user-uuid-1',
-  email: 'user@example.com',
-  passwordHash: '$argon2id$old$hash',
-  firstName: 'John',
-  lastName: 'Doe',
-  phone: null,
-  authProvider: 'email',
-  status: 'active',
-  emailVerified: true,
-  createdAt: new Date(),
-};
-
-const validToken = {
-  id: 'tok-reset-1',
-  userId: 'user-uuid-1',
-  type: 'reset_password' as const,
-  token: '987654',
-  expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-  used: false,
-  createdAt: new Date(),
-};
+const mockValidateResetAttempt = jest.fn();
 
 const ctx = { requestId: 'req-1', ip: '127.0.0.1' };
 
@@ -51,10 +27,14 @@ describe('ResetPasswordService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockFindByEmail.mockResolvedValue(user);
-    mockFindValid.mockResolvedValue(validToken);
+    // Default: guard passes — valid code, userId and 3 attempts remaining
+    mockValidateResetAttempt.mockResolvedValue({
+      tokenId: 'tok-reset-1',
+      userId: 'user-uuid-1',
+      attemptsRemaining: 3,
+    });
     mockHash.mockResolvedValue('$argon2id$new$hash');
-    mockUpdatePasswordHash.mockResolvedValue({ ...user, passwordHash: '$argon2id$new$hash' });
+    mockUpdatePasswordHash.mockResolvedValue(undefined);
     mockMarkUsed.mockResolvedValue(undefined);
     mockInvalidateActive.mockResolvedValue(undefined);
 
@@ -64,20 +44,22 @@ describe('ResetPasswordService', () => {
         {
           provide: UserRepository,
           useValue: {
-            findByEmail: mockFindByEmail,
             updatePasswordHash: mockUpdatePasswordHash,
           },
         },
         {
           provide: VerificationTokenRepository,
           useValue: {
-            findValid: mockFindValid,
             markUsed: mockMarkUsed,
             invalidateActive: mockInvalidateActive,
           },
         },
         { provide: PasswordService, useValue: { hash: mockHash } },
         { provide: EventEmitter2, useValue: { emit: mockEmit } },
+        {
+          provide: VerifyResetCodeService,
+          useValue: { validateResetAttempt: mockValidateResetAttempt },
+        },
       ],
     }).compile();
 
@@ -91,11 +73,10 @@ describe('ResetPasswordService', () => {
       new_password: 'NewSecure1',
     };
 
-    it('looks up user by email and validates the reset_password token', async () => {
+    it('calls validateResetAttempt guard with email and token before mutating', async () => {
       await service.reset(validDto, ctx);
 
-      expect(mockFindByEmail).toHaveBeenCalledWith('user@example.com');
-      expect(mockFindValid).toHaveBeenCalledWith('user-uuid-1', 'reset_password', '987654');
+      expect(mockValidateResetAttempt).toHaveBeenCalledWith('user@example.com', '987654');
     });
 
     it('hashes the new password with PasswordService before storing', async () => {
@@ -129,51 +110,47 @@ describe('ResetPasswordService', () => {
     });
   });
 
-  describe('failure paths', () => {
-    it('throws BadRequestException(TOKEN_INVALID) when user is not found', async () => {
-      mockFindByEmail.mockResolvedValue(null);
+  describe('bypass-guard: guard throws → NO password mutation', () => {
+    const dto = {
+      email: 'user@example.com',
+      token: '000000',
+      new_password: 'NewSecure1',
+    };
 
-      try {
-        await service.reset(
-          { email: 'ghost@example.com', token: '000000', new_password: 'NewSecure1' },
-          ctx,
-        );
-        fail('expected BadRequestException');
-      } catch (err) {
-        expect(err).toBeInstanceOf(BadRequestException);
-        const response = (err as BadRequestException).getResponse();
-        expect(response).toMatchObject({ code: 'TOKEN_INVALID' });
-      }
-    });
+    it('propagates TOKEN_INVALID from validateResetAttempt without mutating password', async () => {
+      mockValidateResetAttempt.mockRejectedValue(
+        new BadRequestException({
+          code: 'TOKEN_INVALID',
+          message: 'Invalid or expired reset code',
+          details: { attemptsRemaining: 2 },
+        }),
+      );
 
-    it('throws BadRequestException(TOKEN_INVALID) when the code does not match', async () => {
-      mockFindValid.mockResolvedValue(null);
-
-      try {
-        await service.reset(
-          { email: 'user@example.com', token: '000000', new_password: 'NewSecure1' },
-          ctx,
-        );
-        fail('expected BadRequestException');
-      } catch (err) {
-        expect(err).toBeInstanceOf(BadRequestException);
-      }
-    });
-
-    it('does not mutate the password or emit audit when the code is invalid', async () => {
-      mockFindValid.mockResolvedValue(null);
-
-      await expect(
-        service.reset(
-          { email: 'user@example.com', token: '000000', new_password: 'NewSecure1' },
-          ctx,
-        ),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.reset(dto, ctx)).rejects.toMatchObject({
+        response: { code: 'TOKEN_INVALID' },
+      });
 
       expect(mockHash).not.toHaveBeenCalled();
       expect(mockUpdatePasswordHash).not.toHaveBeenCalled();
       expect(mockMarkUsed).not.toHaveBeenCalled();
-      expect(mockInvalidateActive).not.toHaveBeenCalled();
+      expect(mockEmit).not.toHaveBeenCalled();
+    });
+
+    it('propagates ATTEMPTS_EXHAUSTED from validateResetAttempt without mutating password', async () => {
+      mockValidateResetAttempt.mockRejectedValue(
+        new BadRequestException({
+          code: 'ATTEMPTS_EXHAUSTED',
+          message: 'Maximum verification attempts reached',
+        }),
+      );
+
+      await expect(service.reset(dto, ctx)).rejects.toMatchObject({
+        response: { code: 'ATTEMPTS_EXHAUSTED' },
+      });
+
+      expect(mockHash).not.toHaveBeenCalled();
+      expect(mockUpdatePasswordHash).not.toHaveBeenCalled();
+      expect(mockMarkUsed).not.toHaveBeenCalled();
       expect(mockEmit).not.toHaveBeenCalled();
     });
   });

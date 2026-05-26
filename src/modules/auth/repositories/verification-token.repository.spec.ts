@@ -2,6 +2,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 
+import { RESET_CODE_MAX_ATTEMPTS } from '../auth.constants';
 import { VerificationTokenRepository } from './verification-token.repository';
 
 const mockCreate = jest.fn();
@@ -17,6 +18,7 @@ function makePrismaRow(overrides: Record<string, unknown> = {}) {
     token: '123456',
     expires_at: new Date('2026-05-18T01:00:00Z'),
     used: false,
+    attempts_used: 0,
     created_at: new Date('2026-05-18T00:00:00Z'),
     ...overrides,
   };
@@ -75,6 +77,7 @@ describe('VerificationTokenRepository', () => {
         token: '123456',
         expiresAt: new Date('2026-05-18T01:00:00Z'),
         used: false,
+        attemptsUsed: 0,
         createdAt: new Date('2026-05-18T00:00:00Z'),
       });
     });
@@ -170,6 +173,96 @@ describe('VerificationTokenRepository', () => {
           used: false,
         },
         data: { used: true },
+      });
+    });
+  });
+
+  describe('findActiveResetToken()', () => {
+    it('returns the active reset_password token for the user when one exists', async () => {
+      const row = makePrismaRow({ type: 'reset_password', attempts_used: 1 });
+      mockFindFirst.mockResolvedValue(row);
+      const now = new Date('2026-05-18T00:30:00Z');
+
+      const result = await repo.findActiveResetToken('user-uuid-1', now);
+
+      expect(mockFindFirst).toHaveBeenCalledWith({
+        where: {
+          user_id: 'user-uuid-1',
+          type: 'reset_password',
+          used: false,
+          expires_at: { gt: now },
+        },
+        orderBy: { created_at: 'desc' },
+      });
+      expect(result).not.toBeNull();
+      expect(result?.attemptsUsed).toBe(1);
+      expect(result?.type).toBe('reset_password');
+    });
+
+    it('returns null when no active reset token exists', async () => {
+      mockFindFirst.mockResolvedValue(null);
+
+      const result = await repo.findActiveResetToken('user-uuid-1');
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null when token is expired', async () => {
+      mockFindFirst.mockResolvedValue(null);
+      const now = new Date('2026-05-20T00:00:00Z');
+
+      const result = await repo.findActiveResetToken('user-uuid-1', now);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('incrementAttempts()', () => {
+    it('increments attempts_used atomically when under the limit and returns the new count', async () => {
+      // updateMany returns count=1, then re-read returns attemptsUsed=2
+      mockUpdateMany.mockResolvedValue({ count: 1 });
+      mockFindFirst.mockResolvedValue(makePrismaRow({ attempts_used: 2 }));
+
+      const result = await repo.incrementAttempts('tok-uuid-1');
+
+      expect(mockUpdateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'tok-uuid-1',
+          used: false,
+          attempts_used: { lt: RESET_CODE_MAX_ATTEMPTS },
+        },
+        data: { attempts_used: { increment: 1 } },
+      });
+      expect(result).toBe(2);
+    });
+
+    it('returns null when count===0 (already at or over limit — lost the race)', async () => {
+      mockUpdateMany.mockResolvedValue({ count: 0 });
+
+      const result = await repo.incrementAttempts('tok-uuid-1');
+
+      expect(result).toBeNull();
+      // must NOT re-read the row
+      expect(mockFindFirst).not.toHaveBeenCalled();
+    });
+
+    it('uses the re-read row count (not count=1) as the new attemptsUsed', async () => {
+      mockUpdateMany.mockResolvedValue({ count: 1 });
+      mockFindFirst.mockResolvedValue(makePrismaRow({ attempts_used: 3 }));
+
+      const result = await repo.incrementAttempts('tok-uuid-1');
+
+      expect(result).toBe(3);
+    });
+
+    it('re-reads by id to get the updated attempts_used value', async () => {
+      mockUpdateMany.mockResolvedValue({ count: 1 });
+      mockFindFirst.mockResolvedValue(makePrismaRow({ attempts_used: 1 }));
+
+      await repo.incrementAttempts('tok-uuid-1');
+
+      expect(mockFindFirst).toHaveBeenCalledWith({
+        where: { id: 'tok-uuid-1' },
       });
     });
   });

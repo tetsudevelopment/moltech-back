@@ -19,6 +19,7 @@ import { ResendVerificationService } from './services/resend-verification.servic
 import { ResetPasswordService } from './services/reset-password.service';
 import { SocialLoginService } from './services/social-login.service';
 import { VerifyEmailService } from './services/verify-email.service';
+import { VerifyResetCodeService } from './services/verify-reset-code.service';
 
 @Module({
   controllers: [AuthController],
@@ -35,6 +36,7 @@ import { VerifyEmailService } from './services/verify-email.service';
     VerifyEmailService,
     ResendVerificationService,
     ForgotPasswordService,
+    VerifyResetCodeService,
     ResetPasswordService,
     GoogleOAuthVerifier,
     FacebookOAuthVerifier,

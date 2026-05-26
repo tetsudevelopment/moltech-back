@@ -12,6 +12,7 @@ import { ResendVerificationSchema } from '@/modules/auth/dtos/resend-verificatio
 import { ResetPasswordSchema } from '@/modules/auth/dtos/reset-password.dto';
 import { SocialLoginSchema } from '@/modules/auth/dtos/social-login.dto';
 import { VerifyEmailSchema } from '@/modules/auth/dtos/verify-email.dto';
+import { VerifyResetCodeSchema } from '@/modules/auth/dtos/verify-reset-code.dto';
 
 import { AuthController } from './auth.controller';
 import { ForgotPasswordService } from '../services/forgot-password.service';
@@ -28,6 +29,7 @@ import { ResendVerificationService } from '../services/resend-verification.servi
 import { ResetPasswordService } from '../services/reset-password.service';
 import { SocialLoginService } from '../services/social-login.service';
 import { VerifyEmailService } from '../services/verify-email.service';
+import { VerifyResetCodeService } from '../services/verify-reset-code.service';
 
 const mockRegister = jest.fn();
 const mockLogin = jest.fn();
@@ -39,6 +41,7 @@ const mockForgotPassword = jest.fn();
 const mockResetPassword = jest.fn();
 const mockSocialLogin = jest.fn();
 const mockGetAccessTokenTtl = jest.fn();
+const mockValidateResetAttempt = jest.fn();
 
 const validBody = {
   email: 'user@example.com',
@@ -107,6 +110,7 @@ describe('AuthController', () => {
     mockForgotPassword.mockResolvedValue(undefined);
     mockResetPassword.mockResolvedValue(undefined);
     mockGetAccessTokenTtl.mockReturnValue(900);
+    mockValidateResetAttempt.mockResolvedValue({ tokenId: 'tok-1', attemptsRemaining: 3 });
     mockSocialLogin.mockResolvedValue({
       accessToken: 'social-access',
       refreshToken: 'social-refresh',
@@ -145,6 +149,10 @@ describe('AuthController', () => {
         {
           provide: JwtService,
           useValue: { getAccessTokenTtlSeconds: mockGetAccessTokenTtl },
+        },
+        {
+          provide: VerifyResetCodeService,
+          useValue: { validateResetAttempt: mockValidateResetAttempt },
         },
       ],
     }).compile();
@@ -550,6 +558,81 @@ describe('AuthController', () => {
       const pipe = new ZodValidationPipe(LogoutSchema);
 
       expect(() => pipe.transform({ refresh_token: '' })).toThrow(ZodError);
+    });
+  });
+
+  describe('POST /auth/verify-reset-code', () => {
+    const validVerifyResetBody = { email: 'user@example.com', token: '987654' };
+
+    it('calls VerifyResetCodeService.validateResetAttempt with email and token', async () => {
+      const dto = VerifyResetCodeSchema.parse(validVerifyResetBody);
+
+      await controller.verifyResetCode(dto);
+
+      expect(mockValidateResetAttempt).toHaveBeenCalledWith('user@example.com', '987654');
+    });
+
+    it('returns { attemptsRemaining } from the service on success (200)', async () => {
+      mockValidateResetAttempt.mockResolvedValue({ tokenId: 'tok-1', attemptsRemaining: 3 });
+      const dto = VerifyResetCodeSchema.parse(validVerifyResetBody);
+
+      const result = await controller.verifyResetCode(dto);
+
+      expect(result).toEqual({ attemptsRemaining: 3 });
+    });
+
+    it('returns attemptsRemaining=2 when one prior attempt was made', async () => {
+      mockValidateResetAttempt.mockResolvedValue({ tokenId: 'tok-1', attemptsRemaining: 2 });
+      const dto = VerifyResetCodeSchema.parse(validVerifyResetBody);
+
+      const result = await controller.verifyResetCode(dto);
+
+      expect(result).toEqual({ attemptsRemaining: 2 });
+    });
+
+    it('propagates TOKEN_INVALID BadRequestException from the service', async () => {
+      mockValidateResetAttempt.mockRejectedValue(
+        new BadRequestException({
+          code: 'TOKEN_INVALID',
+          message: 'Invalid or expired reset code',
+          details: { attemptsRemaining: 2 },
+        }),
+      );
+      const dto = VerifyResetCodeSchema.parse(validVerifyResetBody);
+
+      await expect(controller.verifyResetCode(dto)).rejects.toMatchObject({
+        response: { code: 'TOKEN_INVALID' },
+      });
+    });
+
+    it('propagates ATTEMPTS_EXHAUSTED BadRequestException from the service', async () => {
+      mockValidateResetAttempt.mockRejectedValue(
+        new BadRequestException({
+          code: 'ATTEMPTS_EXHAUSTED',
+          message: 'Maximum verification attempts reached',
+        }),
+      );
+      const dto = VerifyResetCodeSchema.parse(validVerifyResetBody);
+
+      await expect(controller.verifyResetCode(dto)).rejects.toMatchObject({
+        response: { code: 'ATTEMPTS_EXHAUSTED' },
+      });
+    });
+
+    it('verify-reset-code DTO rejects non-6-digit tokens', () => {
+      const pipe = new ZodValidationPipe(VerifyResetCodeSchema);
+
+      expect(() => pipe.transform({ email: 'user@example.com', token: 'abc' })).toThrow(ZodError);
+      expect(() => pipe.transform({ email: 'user@example.com', token: '12345' })).toThrow(ZodError);
+      expect(() => pipe.transform({ email: 'user@example.com', token: '1234567' })).toThrow(
+        ZodError,
+      );
+    });
+
+    it('verify-reset-code DTO rejects invalid email', () => {
+      const pipe = new ZodValidationPipe(VerifyResetCodeSchema);
+
+      expect(() => pipe.transform({ email: 'not-email', token: '123456' })).toThrow(ZodError);
     });
   });
 });
