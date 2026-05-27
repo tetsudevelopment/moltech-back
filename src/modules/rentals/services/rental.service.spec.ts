@@ -100,6 +100,7 @@ const mockTxPaymentsCreate = jest.fn();
 
 const mockRentalsCreate = jest.fn();
 const mockRentalsFindById = jest.fn();
+const mockRentalsFindActiveByUser = jest.fn();
 const mockRentalsFinalize = jest.fn();
 
 const mockPowerBanksFindById = jest.fn();
@@ -143,6 +144,7 @@ describe('RentalService', () => {
           useValue: {
             create: mockRentalsCreate,
             findById: mockRentalsFindById,
+            findActiveByUser: mockRentalsFindActiveByUser,
             finalize: mockRentalsFinalize,
           },
         },
@@ -166,6 +168,7 @@ describe('RentalService', () => {
 
   describe('startRental()', () => {
     function happyPathSetup() {
+      mockRentalsFindActiveByUser.mockResolvedValue(null);
       mockPaymentMethodsFindByIdForUser.mockResolvedValue(activePaymentMethod());
       mockPowerBanksFindById.mockResolvedValue(availablePowerBank());
       mockStationsFindUnique.mockResolvedValue(activeStationRow());
@@ -345,6 +348,80 @@ describe('RentalService', () => {
       // We charged BEFORE noticing — that's the contract today; the refund flow is F5b.
       expect(mockGatewayCharge).toHaveBeenCalledTimes(1);
       expect(mockRentalsCreate).not.toHaveBeenCalled();
+    });
+
+    // ─── one ACTIVE rental per user ─────────────────────────────────────────
+
+    it('proceeds and creates the rental when the user has no active rental (pre-check returns null)', async () => {
+      happyPathSetup();
+      mockRentalsFindActiveByUser.mockResolvedValue(null);
+
+      const result = await service.startRental(USER_ID, validStartDto);
+
+      expect(mockRentalsFindActiveByUser).toHaveBeenCalledWith(USER_ID);
+      expect(result.id).toBe(RENTAL_ID);
+      expect(mockRentalsCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws USER_HAS_ACTIVE_RENTAL BEFORE charging when the user already has an active rental', async () => {
+      happyPathSetup();
+      mockRentalsFindActiveByUser.mockResolvedValue(activeRental());
+
+      await expect(service.startRental(USER_ID, validStartDto)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      await expect(service.startRental(USER_ID, validStartDto)).rejects.toMatchObject({
+        response: {
+          code: 'USER_HAS_ACTIVE_RENTAL',
+          message: 'Ya tenés un alquiler activo',
+          details: { activeRentalId: RENTAL_ID },
+        },
+      });
+      // The pre-check must run BEFORE any payment charge — fail fast, no money moved.
+      expect(mockGatewayCharge).not.toHaveBeenCalled();
+      expect(mockRentalsCreate).not.toHaveBeenCalled();
+    });
+
+    it('rethrows USER_HAS_ACTIVE_RENTAL when the partial unique index raises P2002 (race backstop)', async () => {
+      happyPathSetup();
+      // Pre-check passes (concurrent request slipped through), but the DB index rejects the insert.
+      mockRentalsFindActiveByUser.mockResolvedValue(null);
+      // Mirrors the real Prisma 6 shape: meta.target is the column list and
+      // meta.modelName names the model (verified against the live Postgres DB).
+      const p2002 = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed on the fields: (`user_id`)',
+        {
+          code: 'P2002',
+          clientVersion: '6.0.0',
+          meta: { modelName: 'rentals', target: ['user_id'] },
+        },
+      );
+      mockRentalsCreate.mockRejectedValue(p2002);
+
+      await expect(service.startRental(USER_ID, validStartDto)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      await expect(service.startRental(USER_ID, validStartDto)).rejects.toMatchObject({
+        response: { code: 'USER_HAS_ACTIVE_RENTAL' },
+      });
+    });
+
+    it('does NOT swallow unrelated P2002 errors (only the active-rental index maps to 409)', async () => {
+      happyPathSetup();
+      mockRentalsFindActiveByUser.mockResolvedValue(null);
+      const otherP2002 = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed on the fields: (`gateway`,`transaction_id`)',
+        {
+          code: 'P2002',
+          clientVersion: '6.0.0',
+          meta: { modelName: 'payments', target: ['gateway', 'transaction_id'] },
+        },
+      );
+      mockRentalsCreate.mockRejectedValue(otherP2002);
+
+      await expect(service.startRental(USER_ID, validStartDto)).rejects.not.toMatchObject({
+        response: { code: 'USER_HAS_ACTIVE_RENTAL' },
+      });
     });
   });
 

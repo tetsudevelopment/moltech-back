@@ -33,6 +33,11 @@ export interface RentalContext {
 
 const MIN_BILLABLE_HOURS = new Prisma.Decimal('0.25');
 
+// Name of the partial unique index that enforces "max one ACTIVE rental per
+// user" at the DB level. A P2002 referencing this index is the race backstop
+// for the non-locking pre-check; we map it to the same 409.
+const ONE_ACTIVE_RENTAL_INDEX = 'one_active_rental_per_user';
+
 @Injectable()
 export class RentalService {
   constructor(
@@ -49,6 +54,20 @@ export class RentalService {
     dto: StartRentalDto,
     context: RentalContext = {},
   ): Promise<Rental> {
+    // Fail-fast pre-check: a user may hold at most one ACTIVE rental. This runs
+    // BEFORE any payment charge so we never move money for a request the DB
+    // would reject anyway. It is NOT race-safe on its own (Read Committed: the
+    // SELECT takes no lock) — the partial unique index is the real guard, see
+    // the backstop around the insert below.
+    const active = await this.rentals.findActiveByUser(userId);
+    if (active) {
+      throw new ConflictException({
+        code: 'USER_HAS_ACTIVE_RENTAL',
+        message: 'Ya tenés un alquiler activo',
+        details: { activeRentalId: active.id },
+      });
+    }
+
     const paymentMethod = await this.paymentMethods.findByIdForUser(dto.payment_method_id, userId);
     if (!paymentMethod) {
       throw new NotFoundException({
@@ -123,51 +142,65 @@ export class RentalService {
       });
     }
 
-    const rental = await this.prisma.$transaction(async (tx) => {
-      const currentPb = await tx.power_banks.findUnique({
-        where: { id: dto.power_bank_id },
+    let rental: Rental;
+    try {
+      rental = await this.prisma.$transaction(async (tx) => {
+        const currentPb = await tx.power_banks.findUnique({
+          where: { id: dto.power_bank_id },
+        });
+        if (currentPb?.status !== 'available') {
+          throw new ConflictException({
+            code: 'POWER_BANK_UNAVAILABLE',
+            message: 'Power bank was reserved by another rental',
+          });
+        }
+
+        const created = await this.rentals.create(
+          {
+            userId,
+            powerBankId: dto.power_bank_id,
+            pickupStationId: dto.pickup_station_id,
+            paymentMethodId: dto.payment_method_id,
+            couponId: dto.coupon_id ?? null,
+            estimatedDurationHours: dto.estimated_duration_hours,
+            hourlyRate: hourlyRate.toFixed(2),
+            estimatedCost: estimatedCost.toFixed(2),
+            currency: station.currency,
+            discountApplied: discountApplied.toFixed(2),
+          },
+          tx,
+        );
+
+        await tx.payments.create({
+          data: {
+            rental_id: created.id,
+            user_id: userId,
+            payment_method_id: dto.payment_method_id,
+            concept: 'rental',
+            amount: netCost,
+            currency: station.currency,
+            gateway: 'other',
+            transaction_id: chargeResult.transactionId,
+            status: 'approved',
+          },
+        });
+
+        await this.powerBanks.setStatus(dto.power_bank_id, 'rented', tx);
+
+        return created;
       });
-      if (currentPb?.status !== 'available') {
+    } catch (error) {
+      // Race backstop: a concurrent request slipped past the pre-check and the
+      // partial unique index rejected this insert. Map it to the same 409.
+      // Only this specific index — never swallow unrelated P2002s.
+      if (isOneActiveRentalViolation(error)) {
         throw new ConflictException({
-          code: 'POWER_BANK_UNAVAILABLE',
-          message: 'Power bank was reserved by another rental',
+          code: 'USER_HAS_ACTIVE_RENTAL',
+          message: 'Ya tenés un alquiler activo',
         });
       }
-
-      const created = await this.rentals.create(
-        {
-          userId,
-          powerBankId: dto.power_bank_id,
-          pickupStationId: dto.pickup_station_id,
-          paymentMethodId: dto.payment_method_id,
-          couponId: dto.coupon_id ?? null,
-          estimatedDurationHours: dto.estimated_duration_hours,
-          hourlyRate: hourlyRate.toFixed(2),
-          estimatedCost: estimatedCost.toFixed(2),
-          currency: station.currency,
-          discountApplied: discountApplied.toFixed(2),
-        },
-        tx,
-      );
-
-      await tx.payments.create({
-        data: {
-          rental_id: created.id,
-          user_id: userId,
-          payment_method_id: dto.payment_method_id,
-          concept: 'rental',
-          amount: netCost,
-          currency: station.currency,
-          gateway: 'other',
-          transaction_id: chargeResult.transactionId,
-          status: 'approved',
-        },
-      });
-
-      await this.powerBanks.setStatus(dto.power_bank_id, 'rented', tx);
-
-      return created;
-    });
+      throw error;
+    }
 
     this.emitSuccess('rental.started', userId, context, {
       rentalId: rental.id,
@@ -271,4 +304,41 @@ export class RentalService {
     };
     this.emitter.emit(AUDIT_RECORDED_EVENT, evt);
   }
+}
+
+/**
+ * True only when the error is a Prisma P2002 unique-violation raised by the
+ * `one_active_rental_per_user` partial index. Other P2002s (e.g. the payments
+ * gateway+transaction unique on the `payments` model) must propagate untouched.
+ *
+ * Prisma's `meta.target` shape is version-dependent: on Prisma 6 it reports the
+ * column list (`['user_id']`) plus `meta.modelName`, while other versions/drivers
+ * surface the raw index name. We match either:
+ *   1. modelName=`rentals` AND target=`['user_id']` — the ONLY unique index on
+ *      `rentals` keyed solely by `user_id` is our partial index, so this is
+ *      unambiguous; OR
+ *   2. the index name appearing in `meta.target` or the message (defensive).
+ */
+function isOneActiveRentalViolation(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+    return false;
+  }
+  const meta = error.meta as { target?: unknown; modelName?: unknown } | undefined;
+  const target = meta?.target;
+
+  if (
+    meta?.modelName === 'rentals' &&
+    Array.isArray(target) &&
+    target.length === 1 &&
+    target[0] === 'user_id'
+  ) {
+    return true;
+  }
+  if (typeof target === 'string' && target.includes(ONE_ACTIVE_RENTAL_INDEX)) {
+    return true;
+  }
+  if (Array.isArray(target) && target.some((t) => t === ONE_ACTIVE_RENTAL_INDEX)) {
+    return true;
+  }
+  return error.message.includes(ONE_ACTIVE_RENTAL_INDEX);
 }

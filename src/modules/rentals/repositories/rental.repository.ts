@@ -49,6 +49,18 @@ export class RentalRepository {
     return row ? mapToDomain(row) : null;
   }
 
+  /**
+   * Returns the user's current ACTIVE rental, or null if they have none.
+   * Used by startRental as a non-locking fail-fast pre-check; the partial
+   * unique index `one_active_rental_per_user` is the race-safe source of truth.
+   */
+  async findActiveByUser(userId: string): Promise<Rental | null> {
+    const row = await this.prisma.rentals.findFirst({
+      where: { user_id: userId, status: 'active' },
+    });
+    return row ? mapToDomain(row) : null;
+  }
+
   async listAdmin(filters: RentalAdminFilters): Promise<PaginatedRentals> {
     const page = Math.max(1, filters.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 50));
