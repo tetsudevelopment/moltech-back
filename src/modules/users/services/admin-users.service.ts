@@ -46,6 +46,39 @@ export class AdminUsersService {
     return user;
   }
 
+  async deleteUser(
+    id: string,
+    actorId: string,
+    context: AdminContext = {},
+  ): Promise<{ id: string }> {
+    if (id === actorId) {
+      throw new BadRequestException({
+        code: 'CANNOT_DELETE_SELF',
+        message: 'You cannot delete your own account.',
+      });
+    }
+    const existing = await this.users.findById(id);
+    if (!existing) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found',
+      });
+    }
+    const deleted = await this.users.deleteById(id);
+    if (!deleted) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found',
+      });
+    }
+    this.emit('user.deleted', actorId, context, {
+      userId: id,
+      previousRole: existing.role,
+      previousStatus: existing.status,
+    });
+    return { id };
+  }
+
   async updateRole(
     id: string,
     actorId: string,
