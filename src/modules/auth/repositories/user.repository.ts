@@ -161,6 +161,23 @@ export class UserRepository {
     return this.mapToDomain(row);
   }
 
+  async deleteById(userId: string): Promise<boolean> {
+    try {
+      await this.prisma.$transaction([
+        this.prisma.verification_tokens.deleteMany({ where: { user_id: userId } }),
+        this.prisma.notifications.deleteMany({ where: { user_id: userId } }),
+        this.prisma.payment_methods.deleteMany({ where: { user_id: userId } }),
+        this.prisma.users.delete({ where: { id: userId } }),
+      ]);
+      return true;
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        return false;
+      }
+      throw err;
+    }
+  }
+
   private mapToDomain(row: {
     id: string;
     email: string | null;

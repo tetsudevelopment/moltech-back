@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 
 import { ZodValidationPipe } from '@/common/pipes/zod-validation.pipe';
@@ -71,6 +71,18 @@ export class AdminUsersController {
       ip: req.ip,
     });
     return { user: serialize(updated) };
+  }
+
+  @Delete(':id')
+  async delete(
+    @CurrentUser() current: { id: string },
+    @Param('id', new ZodValidationPipe(UuidSchema)) id: string,
+    @Req() req: Request & { id?: string },
+  ): Promise<{ id: string }> {
+    return await this.service.deleteUser(id, current.id, {
+      requestId: req.id,
+      ip: req.ip,
+    });
   }
 }
 
