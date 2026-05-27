@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ZodError } from 'zod';
 
@@ -29,12 +30,15 @@ function fakeStation(overrides: Partial<Station> = {}): Station {
     openingTime: null,
     closingTime: null,
     createdAt: new Date('2026-05-01T00:00:00Z'),
+    powerBanksCount: 10,
+    availablePowerBanks: 3,
     ...overrides,
   };
 }
 
 const mockList = jest.fn();
 const mockGetById = jest.fn();
+const mockGetAvailablePowerBanks = jest.fn();
 
 describe('StationsController', () => {
   let controller: StationsController;
@@ -47,7 +51,11 @@ describe('StationsController', () => {
       providers: [
         {
           provide: StationService,
-          useValue: { list: mockList, getById: mockGetById },
+          useValue: {
+            list: mockList,
+            getById: mockGetById,
+            getAvailablePowerBanks: mockGetAvailablePowerBanks,
+          },
         },
       ],
     })
@@ -149,6 +157,34 @@ describe('StationsController', () => {
 
       expect(() => pipe.transform({ status: 'broken' })).toThrow(ZodError);
     });
+
+    it('includes available_power_banks in each list item', async () => {
+      mockList.mockResolvedValue({
+        data: [fakeStation({ availablePowerBanks: 5 })],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      });
+
+      const result = await controller.list(ListStationsQuerySchema.parse({}));
+      const first = result.data[0]!;
+
+      expect(first).toHaveProperty('available_power_banks', 5);
+    });
+
+    it('includes available_power_banks=0 for a station with no available power banks', async () => {
+      mockList.mockResolvedValue({
+        data: [fakeStation({ availablePowerBanks: 0 })],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      });
+
+      const result = await controller.list(ListStationsQuerySchema.parse({}));
+      const first = result.data[0]!;
+
+      expect(first).toHaveProperty('available_power_banks', 0);
+    });
   });
 
   describe('GET /stations/:id', () => {
@@ -170,6 +206,49 @@ describe('StationsController', () => {
       await expect(controller.getById(STATION_ID)).rejects.toMatchObject({
         response: { code: 'STATION_NOT_FOUND' },
       });
+    });
+  });
+
+  describe('GET /stations/:id/power-banks', () => {
+    it('returns serialized power banks in snake_case wire format when they are available', async () => {
+      mockGetAvailablePowerBanks.mockResolvedValue([
+        { id: 'pb-uuid-1', code: 'PB-AND-01', batteryLevel: 85 },
+        { id: 'pb-uuid-2', code: 'PB-AND-02', batteryLevel: 60 },
+      ]);
+
+      const result = await controller.getAvailablePowerBanks(STATION_ID);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({ id: 'pb-uuid-1', code: 'PB-AND-01', battery_level: 85 });
+      expect(result[1]).toEqual({ id: 'pb-uuid-2', code: 'PB-AND-02', battery_level: 60 });
+      expect(result[0]).not.toHaveProperty('batteryLevel');
+      expect(mockGetAvailablePowerBanks).toHaveBeenCalledWith(STATION_ID);
+    });
+
+    it('returns an empty array (200, not an error) when the station has 0 available power banks', async () => {
+      mockGetAvailablePowerBanks.mockResolvedValue([]);
+
+      const result = await controller.getAvailablePowerBanks(STATION_ID);
+
+      expect(result).toEqual([]);
+    });
+
+    it('propagates STATION_NOT_FOUND when the station does not exist', async () => {
+      mockGetAvailablePowerBanks.mockRejectedValue(
+        new NotFoundException({ code: 'STATION_NOT_FOUND', message: 'Station not found' }),
+      );
+
+      await expect(controller.getAvailablePowerBanks(STATION_ID)).rejects.toMatchObject({
+        response: { code: 'STATION_NOT_FOUND' },
+      });
+    });
+
+    it('is protected by JwtAuthGuard at the controller level', () => {
+      const reflector = new Reflector();
+      // The guard is applied at the controller class level via @UseGuards(JwtAuthGuard),
+      // so its metadata lives on the class constructor.
+      const guards = reflector.get<unknown[]>('__guards__', StationsController);
+      expect(guards).toContain(JwtAuthGuard);
     });
   });
 });

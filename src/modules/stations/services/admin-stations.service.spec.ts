@@ -34,6 +34,8 @@ function stationFixture(overrides: Partial<Station> = {}): Station {
     openingTime: null,
     closingTime: null,
     createdAt: new Date('2026-05-18T10:00:00Z'),
+    powerBanksCount: 8,
+    availablePowerBanks: 0,
     ...overrides,
   };
 }

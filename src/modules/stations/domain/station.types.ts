@@ -22,4 +22,9 @@ export interface Station {
    * to render "3/10" badges and disable add/move when capacity is reached.
    */
   powerBanksCount: number;
+  /**
+   * Number of power_banks at this station with status='available'.
+   * Populated via a single grouped query in list() and via countAvailablePowerBanks() in findById().
+   */
+  availablePowerBanks: number;
 }
