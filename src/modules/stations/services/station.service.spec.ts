@@ -7,7 +7,7 @@ import { type PaginatedStations, StationRepository } from '../repositories/stati
 
 const mockList = jest.fn();
 const mockFindById = jest.fn();
-const mockCountAvailable = jest.fn();
+const mockFindAvailablePowerBanks = jest.fn();
 
 function fakeStation(overrides: Partial<Station> = {}): Station {
   return {
@@ -26,6 +26,8 @@ function fakeStation(overrides: Partial<Station> = {}): Station {
     openingTime: null,
     closingTime: null,
     createdAt: new Date('2026-05-01T00:00:00Z'),
+    powerBanksCount: 10,
+    availablePowerBanks: 0,
     ...overrides,
   };
 }
@@ -44,7 +46,7 @@ describe('StationService', () => {
           useValue: {
             list: mockList,
             findById: mockFindById,
-            countAvailablePowerBanks: mockCountAvailable,
+            findAvailablePowerBanks: mockFindAvailablePowerBanks,
           },
         },
       ],
@@ -87,28 +89,63 @@ describe('StationService', () => {
       await expect(service.getById('missing-uuid')).rejects.toMatchObject({
         response: { code: 'STATION_NOT_FOUND' },
       });
-      expect(mockCountAvailable).not.toHaveBeenCalled();
     });
 
-    it('returns station detail with availablePowerBanks count when found', async () => {
-      mockFindById.mockResolvedValue(fakeStation());
-      mockCountAvailable.mockResolvedValue(4);
+    it('returns the station from the repository (availablePowerBanks is populated by the repo)', async () => {
+      mockFindById.mockResolvedValue(fakeStation({ availablePowerBanks: 4 }));
 
       const result = await service.getById('station-uuid-1');
 
       expect(result.id).toBe('station-uuid-1');
       expect(result.availablePowerBanks).toBe(4);
-      expect(mockCountAvailable).toHaveBeenCalledWith('station-uuid-1');
+      expect(mockFindById).toHaveBeenCalledWith('station-uuid-1');
     });
 
     it('forwards the station status (offline / maintenance) to the caller', async () => {
-      mockFindById.mockResolvedValue(fakeStation({ status: 'maintenance' }));
-      mockCountAvailable.mockResolvedValue(0);
+      mockFindById.mockResolvedValue(
+        fakeStation({ status: 'maintenance', availablePowerBanks: 0 }),
+      );
 
       const result = await service.getById('station-uuid-1');
 
       expect(result.status).toBe('maintenance');
       expect(result.availablePowerBanks).toBe(0);
+    });
+  });
+
+  describe('getAvailablePowerBanks()', () => {
+    it('throws STATION_NOT_FOUND when the station does not exist', async () => {
+      mockFindById.mockResolvedValue(null);
+
+      await expect(service.getAvailablePowerBanks('missing-uuid')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      await expect(service.getAvailablePowerBanks('missing-uuid')).rejects.toMatchObject({
+        response: { code: 'STATION_NOT_FOUND' },
+      });
+    });
+
+    it('returns the list from the repo when the station exists and has available power banks', async () => {
+      mockFindById.mockResolvedValue(fakeStation());
+      mockFindAvailablePowerBanks.mockResolvedValue([
+        { id: 'pb-uuid-1', code: 'PB-AND-01', batteryLevel: 85 },
+        { id: 'pb-uuid-2', code: 'PB-AND-02', batteryLevel: 60 },
+      ]);
+
+      const result = await service.getAvailablePowerBanks('station-uuid-1');
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({ id: 'pb-uuid-1', code: 'PB-AND-01', batteryLevel: 85 });
+      expect(mockFindAvailablePowerBanks).toHaveBeenCalledWith('station-uuid-1');
+    });
+
+    it('returns an empty array (not an error) when the station exists but has 0 available power banks', async () => {
+      mockFindById.mockResolvedValue(fakeStation());
+      mockFindAvailablePowerBanks.mockResolvedValue([]);
+
+      const result = await service.getAvailablePowerBanks('station-uuid-1');
+
+      expect(result).toEqual([]);
     });
   });
 });

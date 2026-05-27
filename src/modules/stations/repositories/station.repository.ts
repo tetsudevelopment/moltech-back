@@ -33,7 +33,9 @@ export class StationRepository {
       where: { id },
       include: { _count: { select: { power_banks: true } } },
     });
-    return row ? mapToDomain(row) : null;
+    if (!row) return null;
+    const availablePowerBanks = await this.countAvailablePowerBanks(id);
+    return mapToDomain(row, availablePowerBanks);
   }
 
   async list(filters: StationFilters): Promise<PaginatedStations> {
@@ -55,8 +57,27 @@ export class StationRepository {
       this.prisma.stations.count({ where }),
     ]);
 
+    if (rows.length === 0) {
+      return { data: [], total, page, pageSize };
+    }
+
+    const pageIds = rows.map((r) => r.id);
+    const availableCounts = await this.prisma.power_banks.groupBy({
+      by: ['station_id'],
+      where: {
+        station_id: { in: pageIds },
+        status: 'available',
+      },
+      _count: { _all: true },
+    });
+
+    const availableByStationId = new Map<string, number>();
+    for (const entry of availableCounts) {
+      availableByStationId.set(entry.station_id, entry._count._all);
+    }
+
     return {
-      data: rows.map(mapToDomain),
+      data: rows.map((row) => mapToDomain(row, availableByStationId.get(row.id) ?? 0)),
       total,
       page,
       pageSize,
@@ -67,6 +88,18 @@ export class StationRepository {
     return this.prisma.power_banks.count({
       where: { station_id: stationId, status: 'available' },
     });
+  }
+
+  async findAvailablePowerBanks(stationId: string): Promise<AvailablePowerBank[]> {
+    const rows = await this.prisma.power_banks.findMany({
+      where: { station_id: stationId, status: 'available' },
+      orderBy: { code: 'asc' },
+    });
+    return rows.map((pb) => ({
+      id: pb.id,
+      code: pb.code,
+      batteryLevel: pb.battery_level,
+    }));
   }
 
   async create(input: CreateStationInput): Promise<Station> {
@@ -158,6 +191,12 @@ export class StationRepository {
       summary,
     };
   }
+}
+
+export interface AvailablePowerBank {
+  id: string;
+  code: string;
+  batteryLevel: number;
 }
 
 export type PowerBankStatus = 'available' | 'rented' | 'charging' | 'damaged' | 'retired';
@@ -254,24 +293,27 @@ function parseTime(value: string | null): Date | null {
   return new Date(Date.UTC(1970, 0, 1, hh, mm, ss));
 }
 
-function mapToDomain(row: {
-  id: string;
-  name: string;
-  city: string;
-  zone: string | null;
-  address: string;
-  latitude: Prisma.Decimal;
-  longitude: Prisma.Decimal;
-  hourly_rate: Prisma.Decimal;
-  currency: string;
-  total_capacity: number;
-  status: string;
-  description: string | null;
-  opening_time: Date | null;
-  closing_time: Date | null;
-  created_at: Date;
-  _count?: { power_banks: number };
-}): Station {
+function mapToDomain(
+  row: {
+    id: string;
+    name: string;
+    city: string;
+    zone: string | null;
+    address: string;
+    latitude: Prisma.Decimal;
+    longitude: Prisma.Decimal;
+    hourly_rate: Prisma.Decimal;
+    currency: string;
+    total_capacity: number;
+    status: string;
+    description: string | null;
+    opening_time: Date | null;
+    closing_time: Date | null;
+    created_at: Date;
+    _count?: { power_banks: number };
+  },
+  availablePowerBanks = 0,
+): Station {
   return {
     id: row.id,
     name: row.name,
@@ -289,5 +331,6 @@ function mapToDomain(row: {
     closingTime: row.closing_time,
     createdAt: row.created_at,
     powerBanksCount: row._count?.power_banks ?? 0,
+    availablePowerBanks,
   };
 }

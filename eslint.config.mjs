@@ -7,7 +7,7 @@ import prettier from 'eslint-config-prettier';
 export default tseslint.config(
   // ── Global ignores ─────────────────────────────────────────────────────────
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', '*.js', '*.mjs', '*.cjs'],
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**', '*.js', '*.mjs', '*.cjs', 'prisma/**'],
   },
 
   // ── TypeScript base: strict + stylistic ────────────────────────────────────

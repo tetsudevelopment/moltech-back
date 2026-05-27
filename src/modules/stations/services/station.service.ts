@@ -1,7 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { type Station, type StationStatus } from '../domain/station.types';
-import { type PaginatedStations, StationRepository } from '../repositories/station.repository';
+import {
+  type AvailablePowerBank,
+  type PaginatedStations,
+  StationRepository,
+} from '../repositories/station.repository';
+
+export type { AvailablePowerBank };
 
 export interface ListStationsFilters {
   city?: string;
@@ -10,9 +16,9 @@ export interface ListStationsFilters {
   pageSize?: number;
 }
 
-export interface StationDetail extends Station {
-  availablePowerBanks: number;
-}
+// Station already carries availablePowerBanks from the domain; keep the alias for
+// consumers that reference StationDetail explicitly.
+export type StationDetail = Station;
 
 @Injectable()
 export class StationService {
@@ -30,7 +36,17 @@ export class StationService {
         message: 'Station not found',
       });
     }
-    const availablePowerBanks = await this.stations.countAvailablePowerBanks(id);
-    return { ...station, availablePowerBanks };
+    return station;
+  }
+
+  async getAvailablePowerBanks(id: string): Promise<AvailablePowerBank[]> {
+    const station = await this.stations.findById(id);
+    if (!station) {
+      throw new NotFoundException({
+        code: 'STATION_NOT_FOUND',
+        message: 'Station not found',
+      });
+    }
+    return this.stations.findAvailablePowerBanks(id);
   }
 }

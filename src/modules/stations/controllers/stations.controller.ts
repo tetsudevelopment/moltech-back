@@ -7,7 +7,13 @@ import { JwtAuthGuard } from '@/modules/auth/guards/jwt-auth.guard';
 
 import { type Station, type StationStatus } from '../domain/station.types';
 import { type ListStationsQueryDto, ListStationsQuerySchema } from '../dtos/list-stations.dto';
-import { StationService } from '../services/station.service';
+import { type AvailablePowerBank, StationService } from '../services/station.service';
+
+interface PublicPowerBank {
+  id: string;
+  code: string;
+  battery_level: number;
+}
 
 interface PublicStation {
   id: string;
@@ -25,11 +31,10 @@ interface PublicStation {
   opening_time: string | null;
   closing_time: string | null;
   created_at: string;
-}
-
-interface PublicStationDetail extends PublicStation {
   available_power_banks: number;
 }
+
+type PublicStationDetail = PublicStation;
 
 @Controller('stations')
 @UseGuards(JwtAuthGuard)
@@ -65,11 +70,24 @@ export class StationsController {
     @Param('id', new ZodValidationPipe(UuidSchema)) id: string,
   ): Promise<PublicStationDetail> {
     const station = await this.stationService.getById(id);
-    return {
-      ...serializeStation(station),
-      available_power_banks: station.availablePowerBanks,
-    };
+    return serializeStation(station);
   }
+
+  @Get(':id/power-banks')
+  async getAvailablePowerBanks(
+    @Param('id', new ZodValidationPipe(UuidSchema)) id: string,
+  ): Promise<PublicPowerBank[]> {
+    const powerBanks = await this.stationService.getAvailablePowerBanks(id);
+    return powerBanks.map(serializePowerBank);
+  }
+}
+
+function serializePowerBank(pb: AvailablePowerBank): PublicPowerBank {
+  return {
+    id: pb.id,
+    code: pb.code,
+    battery_level: pb.batteryLevel,
+  };
 }
 
 function serializeStation(station: Station): PublicStation {
@@ -89,5 +107,6 @@ function serializeStation(station: Station): PublicStation {
     opening_time: station.openingTime?.toISOString() ?? null,
     closing_time: station.closingTime?.toISOString() ?? null,
     created_at: station.createdAt.toISOString(),
+    available_power_banks: station.availablePowerBanks,
   };
 }

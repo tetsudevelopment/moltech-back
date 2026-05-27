@@ -1,0 +1,21 @@
+-- Enforce the invariant "max one ACTIVE rental per user" at the database level.
+--
+-- This is the source of truth for the rule: the service does a non-locking
+-- pre-check for fail-fast UX, but under Read Committed two concurrent inserts
+-- can both pass that check. This partial unique index lets Postgres reject the
+-- second insert (raising P2002 / unique_violation), which the service maps to
+-- a 409 USER_HAS_ACTIVE_RENTAL.
+--
+-- PREREQUISITE: run this first; if it returns rows, clean duplicates before applying:
+-- SELECT user_id, COUNT(*) AS active_rentals FROM rentals WHERE status='active' GROUP BY user_id HAVING COUNT(*) > 1;
+--
+-- The dev DB may already contain duplicate active rentals (the integrity bug
+-- this index fixes). If so, this CREATE UNIQUE INDEX will FAIL until the
+-- duplicates are resolved (finalize/cancel the extras). Do NOT auto-delete —
+-- inspect and clean intentionally.
+--
+-- NOTE: no CONCURRENTLY here. Prisma wraps each migration in a transaction and
+-- CREATE INDEX CONCURRENTLY cannot run inside one. A plain index is correct for
+-- this pre-prod stage; revisit only if rentals grows large in production.
+
+CREATE UNIQUE INDEX "one_active_rental_per_user" ON "rentals" ("user_id") WHERE "status" = 'active';

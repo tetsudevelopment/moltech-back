@@ -7,6 +7,7 @@ import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { RentalRepository } from './rental.repository';
 
 const mockFindUnique = jest.fn();
+const mockFindFirst = jest.fn();
 const mockCreate = jest.fn();
 const mockUpdate = jest.fn();
 
@@ -47,6 +48,7 @@ describe('RentalRepository', () => {
           useValue: {
             rentals: {
               findUnique: mockFindUnique,
+              findFirst: mockFindFirst,
               create: mockCreate,
               update: mockUpdate,
             },
@@ -94,6 +96,28 @@ describe('RentalRepository', () => {
       expect(result?.finalCost).toBe('1250.50');
       expect(result?.actualDurationHours).toBe('0.25');
       expect(result?.status).toBe('completed');
+    });
+  });
+
+  describe('findActiveByUser()', () => {
+    it('queries findFirst with the user id and status=active', async () => {
+      mockFindFirst.mockResolvedValue(null);
+
+      const result = await repo.findActiveByUser('user-uuid-1');
+
+      expect(result).toBeNull();
+      const arg = getCallArg<{ where: { user_id: string; status: string } }>(mockFindFirst);
+      expect(arg.where).toEqual({ user_id: 'user-uuid-1', status: 'active' });
+    });
+
+    it('maps the active rental row to the domain shape when one exists', async () => {
+      mockFindFirst.mockResolvedValue(basePrismaRow());
+
+      const result = await repo.findActiveByUser('user-uuid-1');
+
+      expect(result?.id).toBe('rental-uuid-1');
+      expect(result?.status).toBe('active');
+      expect(result?.hourlyRate).toBe('5000.00');
     });
   });
 

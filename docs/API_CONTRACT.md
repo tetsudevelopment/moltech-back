@@ -145,7 +145,7 @@ JS usa float 64-bit. `0.1 + 0.2 = 0.30000000000000004`. Inaceptable para dinero.
 | `401 Unauthorized` | Token ausente, inválido o expirado. |
 | `403 Forbidden` | Token válido, sin permiso. |
 | `404 Not Found` | Recurso no existe (o el usuario no tiene visibilidad — anti-enumeration). |
-| `409 Conflict` | Conflicto de estado (ej: `RENTAL_ALREADY_ACTIVE`, `IDEMPOTENCY_KEY_CONFLICT`). |
+| `409 Conflict` | Conflicto de estado (ej: `USER_HAS_ACTIVE_RENTAL`, `IDEMPOTENCY_KEY_CONFLICT`). |
 | `422 Unprocessable Entity` | Payload bien formado pero falla validación de negocio. |
 | `426 Upgrade Required` | Versión de cliente no soportada. |
 | `429 Too Many Requests` | Rate limit excedido. |
@@ -182,7 +182,7 @@ JS usa float 64-bit. `0.1 + 0.2 = 0.30000000000000004`. Inaceptable para dinero.
 | `STATION_OFFLINE` | 422 | Estación no operativa. |
 | `STATION_EMPTY` | 422 | Sin power banks disponibles en la estación. |
 | `POWER_BANK_UNAVAILABLE` | 422 | Power bank específico no disponible. |
-| `RENTAL_ALREADY_ACTIVE` | 409 | Usuario ya tiene alquiler activo. |
+| `USER_HAS_ACTIVE_RENTAL` | 409 | El usuario ya tiene un alquiler activo (máx. uno). Emitido por `POST /rentals` desde el pre-check no-bloqueante y el backstop del índice parcial único `one_active_rental_per_user`. `details.activeRentalId` cuando viene del pre-check. |
 | `RENTAL_NOT_ACTIVE` | 422 | Operación requiere alquiler activo y no hay. |
 | `RENTAL_LIMIT_EXCEEDED` | 429 | Usuario excedió límite de alquileres en periodo. |
 | `PAYMENT_METHOD_INVALID` | 422 | Método de pago no válido o vencido. |
@@ -553,6 +553,43 @@ Inicia eliminación. Período de gracia **30 días**. Cuenta queda `status = 'in
 
 Detalle. Incluye `available_power_banks` (count en tiempo real).
 
+#### `GET /api/v1/stations/{id}/power-banks`
+
+**Auth:** `Authorization: Bearer <JWT>` (JwtAuthGuard).
+
+Returns the list of **available** power banks at the station. Used by the mobile client to obtain a real `power_bank_id` before starting a rental.
+
+**Path params:** `id` — UUID v4 of the station.
+
+**Response 200 — station exists (0 or more available power banks):**
+
+```json
+{
+  "data": [
+    { "id": "9f199f0f-e684-42e0-9ad6-29cdbed20970", "code": "PB-AND-01", "battery_level": 92 },
+    { "id": "6df875b5-e79f-4ef5-933d-b6d2a3f19a90", "code": "PB-AND-02", "battery_level": 78 }
+  ],
+  "meta": null,
+  "error": null
+}
+```
+
+When the station exists but has no available power banks, `data` is `[]` (empty array) — this is **not** an error.
+
+**Response 404 — station not found:**
+
+```json
+{
+  "data": null,
+  "meta": null,
+  "error": { "code": "STATION_NOT_FOUND", "message": "Station not found" }
+}
+```
+
+**Ordering:** results are ordered by `code` ascending (consistent with admin state view).
+
+**Filter:** only power banks with `status = 'available'` are returned. Rented, charging, damaged, and retired units are excluded.
+
 ### 7.4 Rentals
 
 #### `POST /api/v1/rentals`
@@ -597,7 +634,7 @@ Detalle. Incluye `available_power_banks` (count en tiempo real).
 ```
 
 **Flujo backend:**
-1. Validar `STATION_OFFLINE`, `POWER_BANK_UNAVAILABLE`, `RENTAL_ALREADY_ACTIVE`, `PAYMENT_METHOD_INVALID`, `COUPON_INVALID`.
+1. Validar `STATION_OFFLINE`, `POWER_BANK_UNAVAILABLE`, `USER_HAS_ACTIVE_RENTAL`, `PAYMENT_METHOD_INVALID`, `COUPON_INVALID`.
 2. Lock optimista del power bank (`SELECT ... FOR UPDATE` en una tx).
 3. Crear `rental` con `status = 'active'`.
 4. Crear `payment` con `status = 'pending'`.
@@ -606,7 +643,7 @@ Detalle. Incluye `available_power_banks` (count en tiempo real).
 7. Si async (webhook) → quedará `pending` y se actualiza al recibir webhook.
 8. Emitir `rental.started` y `payment.initiated`.
 
-**Errores:** `STATION_OFFLINE`, `POWER_BANK_UNAVAILABLE`, `RENTAL_ALREADY_ACTIVE`, `PAYMENT_METHOD_INVALID`, `PAYMENT_DECLINED`, `COUPON_INVALID`, `IDEMPOTENCY_KEY_REQUIRED`.
+**Errores:** `STATION_OFFLINE`, `POWER_BANK_UNAVAILABLE`, `USER_HAS_ACTIVE_RENTAL`, `PAYMENT_METHOD_INVALID`, `PAYMENT_DECLINED`, `COUPON_INVALID`, `IDEMPOTENCY_KEY_REQUIRED`.
 
 #### `GET /api/v1/rentals/me`
 

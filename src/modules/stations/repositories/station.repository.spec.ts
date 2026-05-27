@@ -9,6 +9,8 @@ const mockFindUnique = jest.fn();
 const mockFindMany = jest.fn();
 const mockCount = jest.fn();
 const mockPowerBanksCount = jest.fn();
+const mockPowerBanksGroupBy = jest.fn();
+const mockPowerBanksFindMany = jest.fn();
 
 function basePrismaRow() {
   return {
@@ -49,6 +51,8 @@ describe('StationRepository', () => {
             },
             power_banks: {
               count: mockPowerBanksCount,
+              groupBy: mockPowerBanksGroupBy,
+              findMany: mockPowerBanksFindMany,
             },
           },
         },
@@ -69,6 +73,7 @@ describe('StationRepository', () => {
 
     it('maps Decimal columns to fixed-decimal strings', async () => {
       mockFindUnique.mockResolvedValue(basePrismaRow());
+      mockPowerBanksCount.mockResolvedValue(0);
 
       const result = await repo.findById('station-uuid-1');
 
@@ -78,12 +83,34 @@ describe('StationRepository', () => {
       expect(result?.totalCapacity).toBe(10);
       expect(result?.status).toBe('online');
     });
+
+    it('populates availablePowerBanks from countAvailablePowerBanks', async () => {
+      mockFindUnique.mockResolvedValue(basePrismaRow());
+      mockPowerBanksCount.mockResolvedValue(7);
+
+      const result = await repo.findById('station-uuid-1');
+
+      expect(result?.availablePowerBanks).toBe(7);
+      expect(mockPowerBanksCount).toHaveBeenCalledWith({
+        where: { station_id: 'station-uuid-1', status: 'available' },
+      });
+    });
+
+    it('returns availablePowerBanks=0 when no power banks are available', async () => {
+      mockFindUnique.mockResolvedValue(basePrismaRow());
+      mockPowerBanksCount.mockResolvedValue(0);
+
+      const result = await repo.findById('station-uuid-1');
+
+      expect(result?.availablePowerBanks).toBe(0);
+    });
   });
 
   describe('list()', () => {
     it('uses default page=1 and pageSize=20 when none are supplied', async () => {
       mockFindMany.mockResolvedValue([basePrismaRow()]);
       mockCount.mockResolvedValue(1);
+      mockPowerBanksGroupBy.mockResolvedValue([]);
 
       const result = await repo.list({});
 
@@ -103,6 +130,7 @@ describe('StationRepository', () => {
     it('passes city + status filters through to Prisma where clause', async () => {
       mockFindMany.mockResolvedValue([]);
       mockCount.mockResolvedValue(0);
+      mockPowerBanksGroupBy.mockResolvedValue([]);
 
       await repo.list({ city: 'Medellín', status: 'online' });
 
@@ -114,6 +142,7 @@ describe('StationRepository', () => {
     it('clamps pageSize to MAX_PAGE_SIZE (100) when callers ask for more', async () => {
       mockFindMany.mockResolvedValue([]);
       mockCount.mockResolvedValue(0);
+      mockPowerBanksGroupBy.mockResolvedValue([]);
 
       await repo.list({ pageSize: 5000 });
 
@@ -123,6 +152,7 @@ describe('StationRepository', () => {
     it('clamps page and pageSize to a minimum of 1', async () => {
       mockFindMany.mockResolvedValue([]);
       mockCount.mockResolvedValue(0);
+      mockPowerBanksGroupBy.mockResolvedValue([]);
 
       await repo.list({ page: 0, pageSize: 0 });
 
@@ -134,6 +164,7 @@ describe('StationRepository', () => {
     it('skips correctly for a non-first page', async () => {
       mockFindMany.mockResolvedValue([]);
       mockCount.mockResolvedValue(0);
+      mockPowerBanksGroupBy.mockResolvedValue([]);
 
       await repo.list({ page: 3, pageSize: 10 });
 
@@ -141,6 +172,54 @@ describe('StationRepository', () => {
       expect(mockFindMany).toHaveBeenCalledWith(
         expect.objectContaining({ skip: 20, take: 10 }) as object,
       );
+    });
+
+    it('merges availablePowerBanks onto each station via a single groupBy query', async () => {
+      const row = { ...basePrismaRow(), _count: { power_banks: 10 } };
+      mockFindMany.mockResolvedValue([row]);
+      mockCount.mockResolvedValue(1);
+      mockPowerBanksGroupBy.mockResolvedValue([
+        {
+          station_id: 'station-uuid-1',
+          _count: { _all: 7 },
+        },
+      ]);
+
+      const result = await repo.list({});
+
+      expect(result.data[0]?.availablePowerBanks).toBe(7);
+      expect(mockPowerBanksGroupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          by: ['station_id'],
+          where: {
+            station_id: { in: ['station-uuid-1'] },
+            status: 'available',
+          },
+          _count: { _all: true },
+        }) as object,
+      );
+    });
+
+    it('sets availablePowerBanks=0 for a station absent from the groupBy result', async () => {
+      const row = { ...basePrismaRow(), _count: { power_banks: 8 } };
+      mockFindMany.mockResolvedValue([row]);
+      mockCount.mockResolvedValue(1);
+      // groupBy returns empty — zero available power banks
+      mockPowerBanksGroupBy.mockResolvedValue([]);
+
+      const result = await repo.list({});
+
+      expect(result.data[0]?.availablePowerBanks).toBe(0);
+    });
+
+    it('does NOT call groupBy when the page is empty', async () => {
+      mockFindMany.mockResolvedValue([]);
+      mockCount.mockResolvedValue(0);
+      mockPowerBanksGroupBy.mockResolvedValue([]);
+
+      await repo.list({});
+
+      expect(mockPowerBanksGroupBy).not.toHaveBeenCalled();
     });
   });
 
@@ -162,6 +241,53 @@ describe('StationRepository', () => {
       const result = await repo.countAvailablePowerBanks('empty-station');
 
       expect(result).toBe(0);
+    });
+  });
+
+  describe('findAvailablePowerBanks()', () => {
+    it('returns mapped domain objects for available power banks ordered by code asc', async () => {
+      mockPowerBanksFindMany.mockResolvedValue([
+        {
+          id: 'pb-uuid-1',
+          code: 'PB-AND-01',
+          battery_level: 85,
+          station_id: 'station-uuid-1',
+          status: 'available',
+          model: 'Model X',
+          qr_code: 'QR-01',
+          created_at: new Date('2026-01-01T00:00:00Z'),
+          updated_at: new Date('2026-01-01T00:00:00Z'),
+        },
+        {
+          id: 'pb-uuid-2',
+          code: 'PB-AND-02',
+          battery_level: 60,
+          station_id: 'station-uuid-1',
+          status: 'available',
+          model: null,
+          qr_code: 'QR-02',
+          created_at: new Date('2026-01-01T00:00:00Z'),
+          updated_at: new Date('2026-01-01T00:00:00Z'),
+        },
+      ]);
+
+      const result = await repo.findAvailablePowerBanks('station-uuid-1');
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({ id: 'pb-uuid-1', code: 'PB-AND-01', batteryLevel: 85 });
+      expect(result[1]).toEqual({ id: 'pb-uuid-2', code: 'PB-AND-02', batteryLevel: 60 });
+      expect(mockPowerBanksFindMany).toHaveBeenCalledWith({
+        where: { station_id: 'station-uuid-1', status: 'available' },
+        orderBy: { code: 'asc' },
+      });
+    });
+
+    it('returns an empty array when the station has no available power banks', async () => {
+      mockPowerBanksFindMany.mockResolvedValue([]);
+
+      const result = await repo.findAvailablePowerBanks('station-uuid-1');
+
+      expect(result).toEqual([]);
     });
   });
 });

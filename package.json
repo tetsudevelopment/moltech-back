@@ -24,6 +24,7 @@
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config jest.e2e.config.ts",
     "test:watch": "jest --watch",
+    "seed:stations": "node --env-file=.env prisma/seed/run-stations-seed.mjs",
     "typecheck": "tsc --noEmit"
   },
   "lint-staged": {
